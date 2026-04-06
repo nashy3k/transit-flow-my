@@ -62,32 +62,52 @@ class DataGovMySkill:
 
     async def get_latest_fuel_prices(self) -> Dict[str, float]:
         """
-        Fetches the latest weekly fuel prices for RON95, RON97, and Diesel.
-        Returns a dict with the most recent price points.
+        Fetches the latest weekly fuel prices with Firestore caching (Budi95 Update).
+        Checks if the last sync was within 7 days; otherwise fetches from Data.Gov.My.
         """
-        # Official parquet URL from data.gov.my
+        from firebase_admin import firestore
+        import datetime
+
+        db = firestore.client()
+        fuel_ref = db.collection('metadata').document('fuel')
+        fuel_doc = fuel_ref.get()
+
+        if fuel_doc.exists:
+            data = fuel_doc.to_dict()
+            last_sync = data.get('last_sync')
+            if last_sync:
+                # Firestore timestamps are datetime objects
+                age = (datetime.datetime.now(datetime.timezone.utc) - last_sync).days
+                if age < 7: # Weekly Cache logic
+                    print(f"BudiProtocol: Using Weekly Cached Price (Age: {age} days)")
+                    return data.get('rates', {"ron95": 2.05, "ron97": 3.47, "diesel": 3.35, "ron95_skps": 2.05})
+
+        print("BudiProtocol: Cache Expired. Syncing with DataGovMy Registry...")
+        
+        # 1. Official parquet URL from data.gov.my
         parquet_url = "https://storage.data.gov.my/commodities/fuelprice.parquet"
         
-        # Tool call to parse parquet
-        # We'll use the 'parse_parquet_file' tool
+        # 2. Tool call to parse parquet
         result_text = await self._call_tool("parse_parquet_file", {"url": parquet_url})
         
+        latest_rates = {"ron95": 2.05, "ron97": 3.47, "diesel": 3.35, "ron95_skps": 2.05}
         try:
-            # The tool returns a JSON string in markdown or raw text.
-            # We need the most recent row. Parquet parsing result usually has 'data'
-            data = json.loads(result_text)
-            
-            # Assuming the data is a list of dicts, get the last one (latest date)
-            if isinstance(data, list) and len(data) > 0:
-                latest = data[-1]
-                return {
-                    "ron95": float(latest.get("ron95", 2.60)),
+            # The tool returns a JSON string or raw text parse.
+            data_list = json.loads(result_text)
+            if isinstance(data_list, list) and len(data_list) > 0:
+                latest = data_list[-1]
+                latest_rates = {
+                    "ron95": float(latest.get("ron95", 2.05)),
                     "ron97": float(latest.get("ron97", 3.47)),
                     "diesel": float(latest.get("diesel", 3.35)),
                     "ron95_skps": float(latest.get("ron95_skps", 2.05))
                 }
+                # 3. Update Firestore Cache
+                fuel_ref.set({
+                    'rates': latest_rates,
+                    'last_sync': datetime.datetime.now(datetime.timezone.utc)
+                })
         except Exception as e:
             print(f"Error parsing fuel price data: {e}")
             
-        # Fallback to standard prices if parsing fails
-        return {"ron95": 2.60, "ron97": 3.47, "diesel": 3.35, "ron95_skps": 2.05}
+        return latest_rates
