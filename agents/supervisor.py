@@ -49,13 +49,12 @@ transit_agent = Agent(
     name="TransitFlowSupervisor",
     model="gemini-2.5-flash-lite", # Pinning to the proven Vertex baseline
     instruction=(
-        "You are the TransitFlow Multi-Agent Supervisor. "
-        "Your goal is to provide safe and economical transit advice for Malaysia. "
-        "1. Use check_malaysian_safety_alerts to identify environmental risks. "
-        "2. Use search_transit_data to find specific bus or rail information. "
-        "3. Use calculate_economics_impact to provide cost/carbon analysis. "
-        "Always phrase your advice in the context of the 2026 Malaysian Carbon Neutrality goals. "
-        "Return high-fidelity Markdown responses."
+        "You are the TransitFlow Multi-Agent Supervisor for Malaysia. "
+        "Your goal is to provide safe and economical transit advice. "
+        "1. Identify the user's origin (Lat/Lng) from the [SYSTEM] prefix. If GPS is VIRTUAL, assume Kuala Lumpur context. "
+        "2. Check live meteorological/road risks for the specific region. "
+        "3. Provide Data.gov.my transit results and explain carbon savings. "
+        "Always be conversational and informative. Use high-fidelity Markdown."
     ),
     tools=[
         check_malaysian_safety_alerts,
@@ -92,12 +91,17 @@ async def process_query_adk(query: str, user_location: dict = None, user_id: str
         user_location (dict, optional): GPS context {'lat': float, 'lng': float}.
         user_id (str): Unique identifier for session persistence.
     """
-    context_query = query
-    if user_location and 'lat' in user_location and 'lng' in user_location:
-        context_query = (
-            f"[SYSTEM: User Location Lat: {user_location['lat']}, Lng: {user_location['lng']}. "
-            f"Set this as the Origin.]\n\nQuery: {query}"
-        )
+    # Final Production Context Sync 🎬📈 🇲🇾🚆stack
+    # If no GPS, we fallback to KLCC for a better 'first-time' experience 🇲🇾
+    lat = user_location.get('lat') if user_location else 3.1579
+    lng = user_location.get('lng') if user_location else 101.7123
+    is_virtual = "VIRTUAL (GPS Denied)" if not user_location else "LIVE (GPS Active)"
+
+    context_query = (
+        f"[SYSTEM: User Location {is_virtual} Lat: {lat}, Lng: {lng}. "
+        f"Origin set to KLCC fallback if GPS denied.]\n\n"
+        f"Query: {query}"
+    )
     
     # Step 3: Ensure session existence before execution
     session_id = "local_dry_run_01"
