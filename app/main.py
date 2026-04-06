@@ -104,6 +104,19 @@ async def chat(request: ChatRequest, user_email: str = Depends(verify_user)):
             "status": "error"
         }
 
+@app.get("/config")
+async def get_config():
+    """Returns the Firebase configuration for the frontend."""
+    return {
+        "apiKey": os.environ.get("GOOGLE_API_KEY", "MISSING_API_KEY"),
+        "authDomain": "transit-flow-my.firebaseapp.com",
+        "projectId": "transit-flow-my",
+        "storageBucket": "transit-flow-my.firebasestorage.app",
+        "messagingSenderId": "360411242286",
+        "appId": "1:360411242286:web:3e6e37535bb8ec917aa4bf",
+        "measurementId": "G-TSSWSTS21D"
+    }
+
 # Mount Static Files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 

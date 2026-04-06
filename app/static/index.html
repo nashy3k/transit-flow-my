@@ -207,7 +207,10 @@
                     </div>
                 </div>
             </div>
-        </main>
+            <div id="gps-status" style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.5rem; text-align: center;">
+                GPS Status: <span id="gps-label">Initializing...</span>
+            </div>
+        </footer>
     </div>
 
     <script type="module">
@@ -216,24 +219,27 @@
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
 
         lucide.createIcons();
+        
+        let app, analytics, auth, provider;
 
         // =============================================================================
-        // Firebase Configuration (v12 Modular) 🎬📈 🇲🇾🚆stack
+        // Dynamic Config (The 'Anti-Leak' Protocol) 🎬📈 🇲🇾🚆stack
         // =============================================================================
-        const firebaseConfig = {
-            apiKey: "AIzaSyAqnG5BXVNtz_SgDvj7I9rMbTOONsDTzDo",
-            authDomain: "transit-flow-my.firebaseapp.com",
-            projectId: "transit-flow-my",
-            storageBucket: "transit-flow-my.firebasestorage.app",
-            messagingSenderId: "360411242286",
-            appId: "1:360411242286:web:3e6e37535bb8ec917aa4bf",
-            measurementId: "G-TSSWSTS21D"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-        const auth = getAuth(app);
-        const provider = new GoogleAuthProvider();
+        async function initFirebase() {
+            try {
+                const response = await fetch('/config');
+                const firebaseConfig = await response.json();
+                
+                app = initializeApp(firebaseConfig);
+                analytics = getAnalytics(app);
+                auth = getAuth(app);
+                provider = new GoogleAuthProvider();
+                
+                setupAuthSystem();
+            } catch (err) {
+                console.error("Critical: Cannot initialize Malaysia Transit System. Config failure:", err);
+            }
+        }
 
         const loginBtn = document.getElementById('login-btn');
         const logoutBtn = document.getElementById('logout-btn');
@@ -251,36 +257,47 @@
         function initLocation() {
             if (navigator.geolocation) {
                 const pinIcon = document.querySelector('[data-lucide="map-pin"]')?.parentElement;
+                const label = document.getElementById('gps-label');
                 navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        userLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
+                    (pos) => {
+                        userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                        const status = `LIVE: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+                        if (label) label.innerText = status;
                         if (pinIcon) { pinIcon.classList.remove('bg-blue-600'); pinIcon.classList.add('bg-green-500'); }
-                    }
+                    },
+                    (err) => {
+                        if (label) label.innerText = `FALLBACK: KLCC (Error ${err.code})`;
+                    },
+                    { timeout: 10000, enableHighAccuracy: true }
                 );
             }
         }
         initLocation();
 
-        // Auth State Monitor (Modular Style) 🎬📈 🇲🇾🚆stack
-        onAuthStateChanged(auth, user => {
-            if (user) {
-                currentUser = user;
-                loginBtn.classList.add('hidden');
-                userInfo.classList.remove('hidden');
-                userInfo.classList.add('flex');
-                userPhoto.src = user.photoURL;
-                userName.innerText = user.displayName.split(' ')[0];
-                console.log("Identity Verified:", user.email);
-            } else {
-                currentUser = null;
-                loginBtn.classList.remove('hidden');
-                userInfo.classList.add('hidden');
-                userInfo.classList.remove('flex');
-            }
-        });
+        // Auth State Setup (Defferred until config loaded) 🎬📈 🇲🇾🚆stack
+        function setupAuthSystem() {
+            onAuthStateChanged(auth, user => {
+                if (user) {
+                    currentUser = user;
+                    loginBtn.classList.add('hidden');
+                    userInfo.classList.remove('hidden');
+                    userInfo.classList.add('flex');
+                    userPhoto.src = user.photoURL;
+                    userName.innerText = user.displayName.split(' ')[0];
+                    console.log("Identity Verified:", user.email);
+                } else {
+                    currentUser = null;
+                    loginBtn.classList.remove('hidden');
+                    userInfo.classList.add('hidden');
+                    userInfo.classList.remove('flex');
+                }
+            });
 
-        loginBtn.onclick = () => signInWithPopup(auth, provider);
-        logoutBtn.onclick = () => signOut(auth);
+            loginBtn.onclick = () => signInWithPopup(auth, provider);
+            logoutBtn.onclick = () => signOut(auth);
+        }
+
+        initFirebase();
 
         async function sendMessage(text) {
             if(!text) return;
@@ -303,8 +320,13 @@
                 });
                 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || 'Identity Verification Failed');
+                    const textContent = await response.text();
+                    try {
+                        const errorData = JSON.parse(textContent);
+                        throw new Error(errorData.detail || 'Identity Verification Failed');
+                    } catch (e) {
+                        throw new Error(`Server returned non-JSON error: ${textContent.substring(0, 100)}...`);
+                    }
                 }
 
                 const data = await response.json();

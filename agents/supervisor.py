@@ -125,8 +125,9 @@ async def process_query_adk(query: str, user_location: dict = None, user_id: str
             new_message=content
         ):
             # ADK provides events in a stream. We look for text-based content parts. 🎬📈 🇲🇾🚆stack
-            if hasattr(event, 'content') and event.content.parts:
-                for part in event.content.parts:
+            content = getattr(event, 'content', None)
+            if content and hasattr(content, 'parts') and content.parts:
+                for part in content.parts:
                     if hasattr(part, 'text') and part.text:
                         final_answer = part.text
                     elif getattr(part, 'function_call', None):
