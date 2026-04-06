@@ -9,10 +9,7 @@
     "rewrites": [
       {
         "source": "/chat",
-        "run": {
-          "serviceId": "transit-flow-backend",
-          "region": "us-central1"
-        }
+        "destination": "https://transit-flow-backend-4dcycqsk3q-uc.a.run.app/chat"
       },
       {
         "source": "**",
