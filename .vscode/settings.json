@@ -1,0 +1,1 @@
+{ "search.exclude": { "**/node_modules": true, "**/.next": true, "**/dist": true, "**/media": true }, "files.watcherExclude": { "**/node_modules/**": true, "**/.next/**": true, "**/media/**": true } }

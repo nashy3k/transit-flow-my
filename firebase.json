@@ -1,0 +1,23 @@
+{
+  "hosting": {
+    "public": "app/static",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/chat",
+        "run": {
+          "serviceId": "transit-flow-backend",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
