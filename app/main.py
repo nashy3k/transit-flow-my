@@ -108,6 +108,7 @@ async def chat(request: ChatRequest, user_email: str = Depends(verify_user)):
 async def get_stats():
     """Fetches real-time dashboard statistics from DataGovMy."""
     from agents.skills.datagovmy_skill import DataGovMySkill
+    import json
     skill = DataGovMySkill()
     
     try:
@@ -121,13 +122,13 @@ async def get_stats():
             alerts = json.loads(flood_data) if isinstance(flood_data, str) else []
             flood_count = len(alerts) if isinstance(alerts, list) else 0
         except:
-            flood_count = 5 # Nominal fallback if parsing logic differs
+            flood_count = 0 
             
         return {
             "fuel": f"RM {fuel.get('ron95', 2.05):.2f}",
             "budi": "RM 1.99",
             "flood": flood_count,
-            "uptime": "99.2%" # Calculated based on agent heartbeat
+            "uptime": "99.2%" 
         }
     except Exception as e:
         print(f"Stats fetch error: {e}")
@@ -135,6 +136,17 @@ async def get_stats():
 
 @app.get("/config")
 async def get_config():
+    """Return the client-side configuration (safe for public exposure)"""
+    return {
+        "firebaseConfig": {
+            "apiKey": os.environ.get("FIREBASE_API_KEY"),
+            "authDomain": os.environ.get("FIREBASE_AUTH_DOMAIN"),
+            "projectId": os.environ.get("FIREBASE_PROJECT_ID"),
+            "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET"),
+            "messagingSenderId": os.environ.get("FIREBASE_MESSAGING_SENDER_ID"),
+            "appId": os.environ.get("FIREBASE_APP_ID")
+        }
+    }
 
 # Mount Static Files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

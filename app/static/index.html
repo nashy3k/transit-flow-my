@@ -272,9 +272,10 @@
             try {
                 const response = await fetch('/config');
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const firebaseConfig = await response.json();
+                const data = await response.json();
+                const firebaseConfig = data.firebaseConfig;
 
-                if (firebaseConfig.status === 'MISSING_API_KEY' || !firebaseConfig.apiKey) {
+                if (!firebaseConfig || !firebaseConfig.apiKey) {
                     throw new Error("Missing or invalid Firebase Config.");
                 }
 
