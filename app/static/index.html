@@ -145,7 +145,7 @@
                         </div>
                         <div class="flex justify-between text-xs">
                             <span class="text-slate-500">Model</span>
-                            <span class="mono text-blue-300">G-Flash-3</span>
+                            <span class="mono text-blue-300">G-Flash-2.5-L</span>
                         </div>
                     </div>
                 </div>
@@ -438,11 +438,10 @@
         async function fetchDashboardStats() {
             try {
                 const res = await fetch('/stats');
-                if (!res.ok) throw new Error("Stats fetch failed");
                 const data = await res.json();
-                document.getElementById('stat-flood').innerText = data.flood;
-                document.getElementById('stat-fuel').innerText = data.fuel;
-                document.getElementById('stat-uptime').innerText = data.uptime;
+                document.getElementById('stat-flood').innerText = (data.flood === 0 || data.flood === "0") ? "0" : (data.flood || "--");
+                document.getElementById('stat-fuel').innerText = data.fuel || "RM --";
+                document.getElementById('stat-uptime').innerText = data.uptime || "--";
             } catch (err) {
                 console.warn("Failed to fetch dynamic stats:", err);
             }
