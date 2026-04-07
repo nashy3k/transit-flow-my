@@ -523,11 +523,28 @@
         let currentScenarioIndex = -1;
 
         function renderVisualInsights(data) {
-            // New logic: data is now { title: string, metrics: [] }
-            const scenario = {
-                title: data.title || "Calculated Journey",
-                metrics: data.metrics || []
-            };
+            // High-Resilience Logic: Handle both Array (legacy) and Object (Scenario History)
+            let scenario;
+            if (Array.isArray(data)) {
+                scenario = {
+                    title: "Calculated Journey",
+                    metrics: data
+                };
+            } else if (data && data.metrics) {
+                scenario = {
+                    title: data.title || "Calculated Journey",
+                    metrics: data.metrics
+                };
+            } else if (data && typeof data === 'object') {
+                // Single object fallback
+                scenario = {
+                    title: data.title || "Quick Insight",
+                    metrics: [data]
+                };
+            } else {
+                console.error("Malformed visual data received:", data);
+                return;
+            }
             
             journeyHistory.push(scenario);
             currentScenarioIndex = journeyHistory.length - 1;
