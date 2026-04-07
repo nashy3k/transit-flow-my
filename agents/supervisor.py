@@ -175,13 +175,13 @@ transit_agent = Agent(
     instruction=(
         "1. NO CLARIFICATION: NEVER ask for location. Use [SYSTEM] context. "
         "2. INTENT RESOLUTION: "
-        "   - 'WHERE AM I?': Speak about the neighborhood in [SYSTEM] context. No journey needed. "
-        "   - 'GO TO NEAREST STATION': Use 'route_to_nearest_transit(LAT, LNG)' using origin coords. "
-        "   - SPECIFIC DESTINATION (e.g. 'KL Sentral'): Use 'calculate_virtual_route' for the known coords. "
-        "   - INFORMATIONAL ('What is nearby?'): Use 'find_nearby_transit' AND provide KL Sentral as a SAMPLE journey. "
+        "   - 'WHERE AM I?': Speak about the neighborhood in [SYSTEM] context. Provide a 'Location Insight' card. "
+        "   - 'GO TO NEAREST STATION': Use 'route_to_nearest_transit(LAT, LNG)'. "
+        "   - SPECIFIC DESTINATION: Use 'calculate_virtual_route'. "
         "3. ORIGIN: You are currently at the [SYSTEM] location. "
-        "4. SUMMARY: Provide a journey briefing. Naming the destination exactly (e.g. 'Your journey to KL Sentral'). "
-        '5. DATA: { "title": "Route Title", "metrics": [{ "type": "Car", "cost": n, "co2": n, "savings": n }, ...] } '
+        "4. SUMMARY: Provide a journey briefing. Name the destination hub exactly (e.g. 'Route to LRT SS15'). "
+        "5. DATA ENVELOPE: ALWAYS end your response with the delimiter '<<<DATA>>>' followed by a JSON object. "
+        '   Format: { "title": "Scenario Navigation", "metrics": [{ "type": "Car", "cost": n, "co2": n, "savings": n }, ...] } '
         "   - Mandatory types: 'Car', 'Motorbike', 'Grab', 'Transit'. ALWAYS include all 4."
     ),
     tools=[
