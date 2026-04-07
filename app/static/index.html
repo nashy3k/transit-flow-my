@@ -136,12 +136,14 @@
             text-align: center;
         }
 
-        /* Essential Layout Clipping Overrides */
-        .grid-cols-1, .grid, main {
-            overflow: visible !important;
+        /* Ensure layout stays within viewport */
+        main {
+            height: 100%;
+            overflow: hidden;
         }
-        .bento-card {
-            overflow: visible !important;
+        #chat-messages {
+            height: 100%;
+            overflow-y: auto;
         }
 
         @media (min-width: 768px) {
@@ -297,10 +299,18 @@
                 </div>
 
                 <!-- Visual Insights (Right Pane) -->
-                <div id="visual-insights" class="hidden md:flex md:w-80 p-6 flex-col gap-4 bg-slate-900/20 overflow-y-auto">
-                    <div class="flex items-center gap-2 text-blue-400 uppercase text-[10px] font-bold tracking-widest mb-2">
-                        <i data-lucide="bar-chart-3" class="w-3 h-3"></i> EcoNomics Insights
+                <div id="visual-insights" class="hidden md:flex md:w-80 p-6 flex-col gap-4 bg-slate-900/10 border-l border-white/5 overflow-y-auto">
+                    <div class="flex items-center justify-between text-blue-400 uppercase text-[10px] font-bold tracking-widest mb-1">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="bar-chart-3" class="w-3 h-3"></i> EcoNomics Insights
+                        </div>
+                        <div id="scenario-nav" class="hidden flex items-center gap-2">
+                            <button onclick="prevScenario()" class="hover:text-white transition-colors"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                            <span id="scenario-index" class="text-slate-500">1/1</span>
+                            <button onclick="nextScenario()" class="hover:text-white transition-colors"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                        </div>
                     </div>
+                    <div id="scenario-title" class="text-[10px] font-bold text-white/80 truncate mb-1 hidden"></div>
                     <div id="insights-container" class="space-y-4">
                         <div class="text-xs text-slate-500 italic p-4 text-center">
                             Ask for transit options to see cost & carbon analysis.
@@ -509,17 +519,48 @@
             }
         }
 
+        let journeyHistory = [];
+        let currentScenarioIndex = -1;
+
         function renderVisualInsights(data) {
+            // New logic: data is now { title: string, metrics: [] }
+            const scenario = {
+                title: data.title || "Calculated Journey",
+                metrics: data.metrics || []
+            };
+            
+            journeyHistory.push(scenario);
+            currentScenarioIndex = journeyHistory.length - 1;
+            updateScenarioView();
+        }
+
+        function updateScenarioView() {
             const container = document.getElementById('insights-container');
             const visualPane = document.getElementById('visual-insights');
+            const nav = document.getElementById('scenario-nav');
+            const indexLabel = document.getElementById('scenario-index');
+            const titleLabel = document.getElementById('scenario-title');
+            
+            const scenario = journeyHistory[currentScenarioIndex];
+            if (!scenario) return;
+
             visualPane.classList.remove('hidden');
             container.innerHTML = '';
             
-            data.forEach(item => {
+            // Show Nav if multiple
+            if (journeyHistory.length > 1) {
+                nav.classList.remove('hidden');
+                indexLabel.innerText = `${currentScenarioIndex + 1} / ${journeyHistory.length}`;
+            }
+
+            titleLabel.innerText = scenario.title;
+            titleLabel.classList.remove('hidden');
+
+            scenario.metrics.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'insight-card tf-tooltip';
                 card.setAttribute('data-tip', item.type === 'Transit' ? 'Public Transit: Fixed fares and lowest carbon footprint per passenger km.' : `Calculated savings & real-time CO2 offset provided by Budi95 for your ${item.type} trip.`);
-                // Normalize for bar width (assume max cost RM10, max co2 5kg for scale)
+                
                 const fuelWidth = Math.min((item.cost / 10) * 100, 100);
                 const co2Width = Math.min((item.co2 / 5) * 100, 100);
                 
@@ -533,13 +574,11 @@
                         <div class="bar-carbon" style="width: 0%"></div>
                     </div>
                     <div class="flex justify-between text-[10px]">
-                        <span class="text-amber-500">RM ${item.cost || 0} Fuel</span>
+                        <span class="text-amber-500">RM ${item.cost || 0} ${item.type === 'Car' || item.type === 'Motorbike' ? 'Fuel' : 'Fare'}</span>
                         <span class="text-emerald-400">${item.co2 || 0}kg CO2</span>
                     </div>
                 `;
                 container.appendChild(card);
-                
-                // Trigger animation after append
                 setTimeout(() => {
                     card.querySelector('.bar-fuel').style.width = `${fuelWidth}%`;
                     card.querySelector('.bar-carbon').style.width = `${co2Width}%`;
@@ -547,6 +586,20 @@
             });
             lucide.createIcons();
         }
+
+        window.prevScenario = () => {
+            if (currentScenarioIndex > 0) {
+                currentScenarioIndex--;
+                updateScenarioView();
+            }
+        };
+
+        window.nextScenario = () => {
+            if (currentScenarioIndex < journeyHistory.length - 1) {
+                currentScenarioIndex++;
+                updateScenarioView();
+            }
+        };
 
         function addMessage(text, side) {
             const div = document.createElement('div');

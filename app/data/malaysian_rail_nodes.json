@@ -1,0 +1,46 @@
+{
+    "stations": [
+        {
+            "name": "LRT GLENMARIE",
+            "lat": 3.0950,
+            "lng": 101.5900,
+            "line": "Kelana Jaya Line"
+        },
+        {
+            "name": "KL SENTRAL",
+            "lat": 3.1340,
+            "lng": 101.6861,
+            "line": "Interchange (LRT/MRT/ETS)"
+        },
+        {
+            "name": "LRT ARA DAMANSARA",
+            "lat": 3.1141,
+            "lng": 101.5835,
+            "line": "Kelana Jaya Line"
+        },
+        {
+            "name": "LRT SUBANG JAYA",
+            "lat": 3.0805,
+            "lng": 101.5866,
+            "line": "Kelana Jaya Line"
+        },
+        {
+            "name": "MRT PASAR SENI",
+            "lat": 3.1423,
+            "lng": 101.6967,
+            "line": "Kajang Line"
+        },
+        {
+            "name": "MRT BANDAR UTAMA",
+            "lat": 3.1465,
+            "lng": 101.6186,
+            "line": "Kajang Line"
+        },
+        {
+            "name": "LRT SS15",
+            "lat": 3.0789,
+            "lng": 101.5861,
+            "line": "Kelana Jaya Line"
+        }
+    ]
+}

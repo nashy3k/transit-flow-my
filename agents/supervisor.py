@@ -89,23 +89,51 @@ async def reverse_geocode_location(lat: float, lng: float) -> str:
         
     return f"Neighborhood near {lat:.3f}, {lng:.3f}"
 
-async def find_nearby_transit(location_name: str = "Kuala Lumpur") -> str:
-    """Find nearby bus, rail stations and live arrivals for a location."""
-    
-    # Specific Domain Knowledge Injection (Real-World Alignment)
-    if "shah alam" in location_name.lower():
-        return (
-            "NOTICE: The closest active LRT station to Shah Alam is **LRT Glenmarie**, "
-            "which is located approximately 8.6 km away. It typically requires a Grab ride "
-            "or a Smart Selangor/RapidKL feeder bus to reach the station. "
-            "Once at LRT Glenmarie, you can connect directly to the Kelana Jaya Line towards KL Sentral/KLCC."
-        )
+import math
+import json
+import os
 
+async def find_nearby_transit(location_name: str = "Shah Alam", lat: float = None, lng: float = None) -> str:
+    """Find nearby rail stations using Haversine distance from specialized registry."""
+    
+    # Load Malaysian Rail Nodes 🎬📈 🇲🇾🚆stack
+    data_path = os.path.join(os.path.dirname(__file__), "..", "app", "data", "malaysian_rail_nodes.json")
     try:
-        # 5s safety timeout for government API
-        return await asyncio.wait_for(skill.find_transit(location_name), timeout=5.0)
-    except Exception:
-        return "NOTICE: Direct transit arrival registry is busy. Checking general RapidKL schedules instead."
+        with open(data_path, "r") as f:
+            registry = json.load(f)
+    except Exception as e:
+        return f"NOTICE: Transit registry offline ({str(e)}). Advising based on general RapidKL schedules."
+
+    # If we have coordinates, find the true closest station
+    if lat and lng:
+        closest_station = None
+        min_dist = float('inf')
+        
+        for station in registry.get("stations", []):
+            # Haversine Formula for high-fidelity spatial awareness
+            R = 6371 # Earth radius in km
+            dlat = math.radians(station['lat'] - lat)
+            dlng = math.radians(station['lng'] - lng)
+            a = math.sin(dlat/2)**2 + math.cos(math.radians(lat)) * math.cos(math.radians(station['lat'])) * math.sin(dlng/2)**2
+            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+            dist = R * c
+            
+            if dist < min_dist:
+                min_dist = dist
+                closest_station = station
+        
+        if closest_station:
+            return (
+                f"SUCCESS: The closest station is **{closest_station['name']}** ({closest_station['line']}). "
+                f"It is approximately **{min_dist:.2f} km** from your current location at {lat:.4f}, {lng:.4f}. "
+                "Recommendation: Use a feeder bus or Grab to reach this hub for the most economical journey."
+            )
+
+    # Fallback to name-based logic if no coords
+    if "shah alam" in location_name.lower():
+        return "NOTICE: Closest active hub is **LRT Glenmarie** (~8.6 km). Use Kelana Jaya Line to KL Sentral."
+        
+    return "NOTICE: Checking general RapidKL schedules for your area."
 
 async def search_transit_data(query: str) -> str:
     """Search the DataGovMy registry for bus, rail, and traffic data."""
@@ -129,13 +157,15 @@ transit_agent = Agent(
     instruction=(
         "You are the TransitFlow Multi-Agent Supervisor for Malaysia. "
         "Your goal is to provide safe and economical transit advice. "
-        "CRITICAL: USE ONLY the following tools: 'calculate_virtual_route', 'check_malaysian_safety_alerts', 'calculate_economics_impact'. Do NOT use 'run_code'. "
-        "1. ORIGIN: You are currently at the [SYSTEM] location provided in the prompt. "
-        "2. DESTINATION: Use the coordinates provided in the [COORDINATES] block below for your destination. "
-        "3. FORMAT: provide a conversational summary followed by '<<<DATA>>>' followed by a JSON array of the visual insight cards. "
-        "   - SUMMARY: Speak naturally about the distance and safety. "
-        '   - DATA: [{ "type": "Car", "cost": n, "co2": n, "savings": n }, { "type": "Motorbike", ... }, { "type": "Grab", ... }, { "type": "Transit", ... }]. '
-        "   - Mandatory types: 'Car', 'Motorbike', 'Grab', 'Transit'. Ensure 'Motorbike' and 'Grab' are ALWAYS included."
+        "CRITICAL: USE ONLY the following tools: 'calculate_virtual_route', 'check_malaysian_safety_alerts', 'calculate_economics_impact', 'find_nearby_transit'. Do NOT use 'run_code'. "
+        "1. NO CLARIFICATION: NEVER ask the user for their location or coordinates. You reach them via the [SYSTEM] block. "
+        "2. PROACTIVE SAMPLING: If a user asks for 'nearby' or 'closest' transit without a destination, provide the answer and then PROACTIVELY calculate the impact of a sample trip to 'KL Sentral' to populate the visuals. Do NOT ask 'where are you going?'—simply act on [SYSTEM] data. "
+        "3. ORIGIN: You are currently at the [SYSTEM] location. "
+        "4. DESTINATION: Use the coordinates provided in [COORDINATES]. "
+        "5. FORMAT: conversational summary followed by '<<<DATA>>>' followed by a structured JSON object. "
+        "   - SUMMARY: Speak about distance, weather, and safety. Do NOT list the costs or CO2 numbers in the text. "
+        '   - DATA: { "title": "Route Title (e.g. Shah Alam to KL Sentral)", "metrics": [{ "type": "Car", "cost": n, "co2": n, "savings": n }, ...] } '
+        "   - Mandatory types: 'Car', 'Motorbike', 'Grab', 'Transit'. ALWAYS include all 4."
     ),
     tools=[
         check_malaysian_safety_alerts,

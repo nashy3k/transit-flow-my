@@ -105,7 +105,7 @@ async def chat(request: ChatRequest, user_email: str = Depends(verify_user)):
                 # Cleanup any potential markdown baggage
                 json_str = json_str.replace("```json", "").replace("```", "").strip()
                 
-                # Try parsing the data array
+                # Try parsing the data object/array
                 try:
                     visual_data = json.loads(json_str)
                 except:
@@ -113,9 +113,12 @@ async def chat(request: ChatRequest, user_email: str = Depends(verify_user)):
                     clean_str = json_str.replace("null", "None").replace("true", "True").replace("false", "False")
                     visual_data = ast.literal_eval(clean_str)
                     
-                if not isinstance(visual_data, list):
-                    # If it's single object, wrap it
-                    visual_data = [visual_data] if visual_data else None
+                # Standardize to { "title": ..., "metrics": [...] }
+                if isinstance(visual_data, list):
+                    visual_data = { "title": "Calculated Journey", "metrics": visual_data }
+                elif isinstance(visual_data, dict) and "metrics" not in visual_data:
+                    # Attempt to fix single objects
+                    visual_data = { "title": visual_data.get("title", "Insight"), "metrics": [visual_data] }
             except Exception as e:
                 print(f"Delimiter Parsing failed: {e}")
                 # chat_text remains ai_raw as fallback
