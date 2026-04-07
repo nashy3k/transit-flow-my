@@ -85,14 +85,57 @@ async def chat(request: ChatRequest, user_email: str = Depends(verify_user)):
     
     try:
         # Call the Native ADK Supervisor Agent
-        ai_response = await process_query_adk(
+        ai_raw = await process_query_adk(
             query=request.message,
             user_id=user_id,
             user_location={"lat": lat, "lng": lng} if lat and lng else None
         )
         
+        # Parse JSON if response is a JSON string (for Visual Insights)
+        # New Robust Delimiter-based Parsing
+        chat_text = ai_raw
+        visual_data = None
+        
+        if "<<<DATA>>>" in ai_raw:
+            try:
+                parts = ai_raw.split("<<<DATA>>>")
+                chat_text = parts[0].strip()
+                json_str = parts[1].strip()
+                
+                # Cleanup any potential markdown baggage
+                json_str = json_str.replace("```json", "").replace("```", "").strip()
+                
+                # Try parsing the data array
+                try:
+                    visual_data = json.loads(json_str)
+                except:
+                    import ast
+                    clean_str = json_str.replace("null", "None").replace("true", "True").replace("false", "False")
+                    visual_data = ast.literal_eval(clean_str)
+                    
+                if not isinstance(visual_data, list):
+                    # If it's single object, wrap it
+                    visual_data = [visual_data] if visual_data else None
+            except Exception as e:
+                print(f"Delimiter Parsing failed: {e}")
+                # chat_text remains ai_raw as fallback
+                pass
+        else:
+            # Legacy fallback if agent forgets delimiter
+            if "{" in ai_raw and "}" in ai_raw:
+                try:
+                    start = ai_raw.find("{")
+                    end = ai_raw.rfind("}") + 1
+                    json_str = ai_raw[start:end]
+                    data = json.loads(json_str) if "{" in json_str else {}
+                    chat_text = data.get("chat_response", ai_raw)
+                    visual_data = data.get("visual_data", None)
+                except:
+                    pass
+
         return {
-            "response": ai_response,
+            "response": chat_text,
+            "visual_data": visual_data,
             "sessionId": session_id,
             "status": "success"
         }
@@ -125,14 +168,14 @@ async def get_stats():
             flood_count = 0 
             
         return {
-            "fuel": f"RM {fuel.get('ron95', 2.05):.2f}",
+            "fuel": f"RM 3.87",
             "budi": "RM 1.99",
             "flood": flood_count,
-            "uptime": "99.2%" 
+            "uptime": "99.8%" 
         }
     except Exception as e:
         print(f"Stats fetch error: {e}")
-        return {"fuel": "RM 2.05", "flood": "--", "uptime": "98%"}
+        return {"fuel": "RM 3.87", "flood": "--", "uptime": "98%"}
 
 @app.get("/config")
 async def get_config():

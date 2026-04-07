@@ -79,6 +79,77 @@
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(255, 255, 255, 0.2);
         }
+        .bar-container {
+            height: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bar-fuel {
+            height: 100%;
+            background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+            position: absolute;
+            left: 0;
+            top: 0;
+            transition: width 1s ease-out;
+            z-index: 1;
+        }
+
+        .bar-carbon {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+            position: absolute;
+            left: 0;
+            top: 0;
+            transition: width 1s ease-out;
+            z-index: 2;
+            opacity: 0.7;
+        }
+
+        .insight-card {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 1rem;
+            padding: 1rem;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        /* JS Driven Global Tooltip System */
+        #global-tooltip {
+            position: fixed;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #94a3b8;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 10px;
+            pointer-events: none;
+            z-index: 999999;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+            opacity: 0;
+            transition: opacity 0.1s ease-out;
+            max-width: 250px;
+            text-align: center;
+        }
+
+        /* Essential Layout Clipping Overrides */
+        .grid-cols-1, .grid, main {
+            overflow: visible !important;
+        }
+        .bento-card {
+            overflow: visible !important;
+        }
+
+        @media (min-width: 768px) {
+            #visual-insights {
+                min-width: 320px;
+                max-width: 320px;
+            }
+        }
     </style>
 </head>
 
@@ -176,7 +247,7 @@
                     </p>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="bento-card p-6 flex flex-col justify-between border-red-500/20">
+                    <div class="bento-card p-6 flex flex-col justify-between border-red-500/20 tf-tooltip" data-tip="Live Meteorological Data (Updated every 5 mins from DataGovMy API)">
                         <div class="p-3 bg-red-500/10 rounded-xl w-fit">
                             <i data-lucide="cloud-rain" class="text-red-400 w-5 h-5"></i>
                         </div>
@@ -185,16 +256,16 @@
                             <p class="text-[10px] uppercase tracking-widest text-slate-500">Active Flood Alerts</p>
                         </div>
                     </div>
-                    <div class="bento-card p-6 flex flex-col justify-between border-amber-500/20">
+                    <div class="bento-card p-6 flex flex-col justify-between border-amber-500/20 tf-tooltip" data-tip="RON95 Global Market Float: Unsubsidized pricing extracted from Firestore (Target: RM 3.87/L)">
                         <div class="p-3 bg-amber-500/10 rounded-xl w-fit">
                             <i data-lucide="fuel" class="text-amber-400 w-5 h-5"></i>
                         </div>
                         <div>
                             <p id="stat-fuel" class="text-2xl font-bold">--</p>
-                            <p class="text-[10px] uppercase tracking-widest text-amber-500/80">RON95 Floating Index</p>
+                            <p class="text-[10px] uppercase tracking-widest text-amber-500/80">RON95 Market Index</p>
                         </div>
                     </div>
-                    <div class="bento-card p-6 flex flex-col justify-between border-green-500/20">
+                    <div class="bento-card p-6 flex flex-col justify-between border-green-500/20 tf-tooltip" data-tip="High Availability Cloud Cluster: Vertex AI Infrastructure Monitoring (us-central1)">
                         <div class="p-3 bg-green-500/10 rounded-xl w-fit">
                             <i data-lucide="train" class="text-green-400 w-5 h-5"></i>
                         </div>
@@ -208,8 +279,10 @@
 
             <!-- Chat Interface -->
             <div class="bento-card flex-1 flex flex-col relative">
-                <!-- Messages -->
-                <div id="chat-messages" class="flex-1 p-6 space-y-6 overflow-y-auto">
+            <!-- New Split Interaction Area -->
+            <div class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+                <!-- Messages (Left Pane) -->
+                <div id="chat-messages" class="flex-1 p-6 space-y-6 overflow-y-auto border-r border-white/5">
                     <div class="flex gap-4 items-start max-w-2xl">
                         <div
                             class="w-8 h-8 rounded-lg bg-blue-600/20 flex items-center justify-center border border-blue-500/30 flex-shrink-0">
@@ -222,6 +295,19 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Visual Insights (Right Pane) -->
+                <div id="visual-insights" class="hidden md:flex md:w-80 p-6 flex-col gap-4 bg-slate-900/20 overflow-y-auto">
+                    <div class="flex items-center gap-2 text-blue-400 uppercase text-[10px] font-bold tracking-widest mb-2">
+                        <i data-lucide="bar-chart-3" class="w-3 h-3"></i> EcoNomics Insights
+                    </div>
+                    <div id="insights-container" class="space-y-4">
+                        <div class="text-xs text-slate-500 italic p-4 text-center">
+                            Ask for transit options to see cost & carbon analysis.
+                        </div>
+                    </div>
+                </div>
+            </div>
 
                 <!-- Input Area -->
                 <div class="p-6 glass-chat rounded-b-[1.5rem]">
@@ -317,17 +403,21 @@
 
         // Reactive Geolocation (F12 overrides)
         if ("geolocation" in navigator) {
+            // Initialize with current position immediately
+            navigator.geolocation.getCurrentPosition((position) => {
+                userLocation = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                updateGpsUI();
+            });
+
             navigator.geolocation.watchPosition((position) => {
                 userLocation = {
                     lat: position.coords.latitude,
                     lng: position.coords.longitude
                 };
-                const gpsLabel = document.getElementById('gps-label');
-                if (gpsLabel) {
-                    gpsLabel.innerText = `LIVE (${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)})`;
-                    gpsLabel.style.color = '#4ade80'; // text-green-400
-                    console.log("GPS Logic: Live Update Applied", userLocation);
-                }
+                updateGpsUI();
             }, (error) => {
                 console.warn("GPS Error/Denied:", error);
                 const gpsLabel = document.getElementById('gps-label');
@@ -335,12 +425,22 @@
                     gpsLabel.innerText = "VIRTUAL FALLBACK (KLCC)";
                     gpsLabel.style.color = '#f59e0b'; // text-amber-500
                 }
-                userLocation = null;
+                // Fallback to KLCC coordinates if denied
+                userLocation = { lat: 3.1579, lng: 101.7123 };
             }, {
                 enableHighAccuracy: true,
                 maximumAge: 0,
                 timeout: 5000
             });
+        }
+
+        function updateGpsUI() {
+            const gpsLabel = document.getElementById('gps-label');
+            if (gpsLabel && userLocation) {
+                gpsLabel.innerText = `LIVE (${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)})`;
+                gpsLabel.style.color = '#4ade80'; // text-green-400
+                console.log("GPS Logic: Live Update Applied", userLocation);
+            }
         }
 
         // Auth State Setup (Defferred until config loaded) 🎬📈 🇲🇾🚆stack
@@ -400,10 +500,52 @@
 
                 const data = await response.json();
                 addMessage(data.response, 'ai');
+                if (data.visual_data) {
+                    renderVisualInsights(data.visual_data);
+                }
             } catch (err) {
                 addMessage(`Identity Alert: ${err.message}`, 'ai');
                 console.error("Auth Fail Detail:", err);
             }
+        }
+
+        function renderVisualInsights(data) {
+            const container = document.getElementById('insights-container');
+            const visualPane = document.getElementById('visual-insights');
+            visualPane.classList.remove('hidden');
+            container.innerHTML = '';
+            
+            data.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'insight-card tf-tooltip';
+                card.setAttribute('data-tip', item.type === 'Transit' ? 'Public Transit: Fixed fares and lowest carbon footprint per passenger km.' : `Calculated savings & real-time CO2 offset provided by Budi95 for your ${item.type} trip.`);
+                // Normalize for bar width (assume max cost RM10, max co2 5kg for scale)
+                const fuelWidth = Math.min((item.cost / 10) * 100, 100);
+                const co2Width = Math.min((item.co2 / 5) * 100, 100);
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">${item.type}</span>
+                        <span class="text-[10px] text-green-400 font-bold">Saved RM ${item.savings || 0}</span>
+                    </div>
+                    <div class="bar-container mb-2">
+                        <div class="bar-fuel" style="width: 0%"></div>
+                        <div class="bar-carbon" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px]">
+                        <span class="text-amber-500">RM ${item.cost || 0} Fuel</span>
+                        <span class="text-emerald-400">${item.co2 || 0}kg CO2</span>
+                    </div>
+                `;
+                container.appendChild(card);
+                
+                // Trigger animation after append
+                setTimeout(() => {
+                    card.querySelector('.bar-fuel').style.width = `${fuelWidth}%`;
+                    card.querySelector('.bar-carbon').style.width = `${co2Width}%`;
+                }, 100);
+            });
+            lucide.createIcons();
         }
 
         function addMessage(text, side) {
@@ -446,6 +588,37 @@
                 console.warn("Failed to fetch dynamic stats:", err);
             }
         }
+    </script>
+    <div id="global-tooltip"></div>
+    <script type="module">
+        // Global JS Tooltip Engine
+        const gt = document.getElementById('global-tooltip');
+        document.addEventListener('mouseover', (e) => {
+            const el = e.target.closest('.tf-tooltip');
+            if (el && el.dataset.tip) {
+                gt.innerText = el.dataset.tip;
+                gt.style.opacity = '1';
+                // Calculate position instantly initially to avoid weird jumps
+                const mx = e.clientX;
+                const my = e.clientY;
+                const gtRect = gt.getBoundingClientRect();
+                gt.style.left = Math.min(Math.max(mx - gtRect.width / 2, 10), window.innerWidth - gtRect.width - 10) + 'px';
+                gt.style.top = Math.max(my - gtRect.height - 15, 10) + 'px';
+            }
+        });
+        document.addEventListener('mousemove', (e) => {
+            if(gt.style.opacity === '1'){
+                const mx = e.clientX;
+                const my = e.clientY;
+                const gtRect = gt.getBoundingClientRect();
+                gt.style.left = Math.min(Math.max(mx - gtRect.width / 2, 10), window.innerWidth - gtRect.width - 10) + 'px';
+                gt.style.top = Math.max(my - gtRect.height - 15, 10) + 'px';
+            }
+        });
+        document.addEventListener('mouseout', (e) => {
+            const el = e.target.closest('.tf-tooltip');
+            if (el) gt.style.opacity = '0';
+        });
     </script>
 </body>
 

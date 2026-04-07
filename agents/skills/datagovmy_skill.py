@@ -2,7 +2,6 @@ import httpx
 import json
 import os
 from typing import Dict, Any, List
-from opik import track
 
 class DataGovMySkill:
     """
@@ -16,7 +15,6 @@ class DataGovMySkill:
             "Accept": "application/json, text/event-stream"
         }
 
-    @track(name="mcp_datagovmy_call")
     async def _call_tool(self, tool_name: str, arguments: Dict[str, Any] = None) -> Any:
         payload = {
             "jsonrpc": "2.0",
