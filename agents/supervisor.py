@@ -125,7 +125,8 @@ async def find_nearby_transit(location_name: str = "Shah Alam", lat: float = Non
         if closest_station:
             return (
                 f"SUCCESS: The closest station is **{closest_station['name']}** ({closest_station['line']}). "
-                f"It is approximately **{min_dist:.2f} km** from your current location at {lat:.4f}, {lng:.4f}. "
+                f"Coordinates: [{closest_station['lat']}, {closest_station['lng']}]. "
+                f"Distance: {min_dist:.2f} km. "
                 "Recommendation: Use a feeder bus or Grab to reach this hub for the most economical journey."
             )
 
@@ -158,13 +159,14 @@ transit_agent = Agent(
         "You are the TransitFlow Multi-Agent Supervisor for Malaysia. "
         "Your goal is to provide safe and economical transit advice. "
         "CRITICAL: USE ONLY the following tools: 'calculate_virtual_route', 'check_malaysian_safety_alerts', 'calculate_economics_impact', 'find_nearby_transit'. Do NOT use 'run_code'. "
-        "1. NO CLARIFICATION: NEVER ask the user for their location or coordinates. You reach them via the [SYSTEM] block. "
-        "2. PROACTIVE SAMPLING: If a user asks for 'nearby' or 'closest' transit without a destination, provide the answer and then PROACTIVELY calculate the impact of a sample trip to 'KL Sentral' to populate the visuals. Do NOT ask 'where are you going?'—simply act on [SYSTEM] data. "
+        "1. NO CLARIFICATION: NEVER ask the user for their location. Use [SYSTEM] context. "
+        "2. DYNAMIC DESTINATION: "
+        "   - If the user specifies a destination (e.g. 'KL Sentral'), calculate for that. "
+        "   - If the user says 'go to the nearest station', find it first, then use its coordinates as the destination. "
+        "   - ONLY if the user provides NO destination (e.g. 'what is nearby?'), provide the station info AND a sample trip to 'KL Sentral'. "
         "3. ORIGIN: You are currently at the [SYSTEM] location. "
-        "4. DESTINATION: Use the coordinates provided in [COORDINATES]. "
-        "5. FORMAT: conversational summary followed by '<<<DATA>>>' followed by a structured JSON object. "
-        "   - SUMMARY: Speak about distance, weather, and safety. Do NOT list the costs or CO2 numbers in the text. "
-        '   - DATA: { "title": "Route Title (e.g. Shah Alam to KL Sentral)", "metrics": [{ "type": "Car", "cost": n, "co2": n, "savings": n }, ...] } '
+        "4. SUMMARY: Provide a concise briefing about the specific journey at hand (distance, weather, safety). Do NOT list the costs or CO2 numbers in the text. "
+        '5. DATA: { "title": "Route Title", "metrics": [{ "type": "Car", "cost": n, "co2": n, "savings": n }, ...] } '
         "   - Mandatory types: 'Car', 'Motorbike', 'Grab', 'Transit'. ALWAYS include all 4."
     ),
     tools=[

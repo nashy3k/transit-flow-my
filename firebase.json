@@ -30,7 +30,10 @@
       },
       {
         "source": "**",
-        "destination": "/index.html"
+        "run": {
+          "serviceId": "transit-flow-backend",
+          "region": "us-central1"
+        }
       }
     ]
   }
