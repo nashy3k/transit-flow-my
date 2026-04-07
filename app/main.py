@@ -69,7 +69,7 @@ async def verify_user(authorization: str = Header(None)) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 async def get_index():
-    with open("app/static/index.html") as f:
+    with open("app/static/app_v0049.html") as f:
         return f.read()
 
 @app.post("/chat")

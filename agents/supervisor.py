@@ -136,6 +136,23 @@ async def find_nearby_transit(location_name: str = "Shah Alam", lat: float = Non
         
     return "NOTICE: Checking general RapidKL schedules for your area."
 
+async def route_to_nearest_transit(lat: float, lng: float) -> str:
+    """Finds the closest rail hub and immediately calculates the journey economics to it. Use this for 'Go to nearest station' requests."""
+    # Step 1: Find station
+    station_info = await find_nearby_transit(lat=lat, lng=lng)
+    
+    # Extract distance from string if possible (e.g. 6.11 km)
+    try:
+        # Simplistic extraction for POC; in prod we'd return a dict from find_nearby_transit
+        dist_km = float(station_info.split("Distance: ")[1].split(" km")[0])
+    except:
+        dist_km = 5.0 # Safe default for local urban hub
+        
+    # Step 2: Calculate Economics
+    eco_summary = calculate_economics_impact(distance_km=dist_km)
+    
+    return f"{station_info}\n\n[ECONOMICS ANALYSIS]\n{eco_summary}"
+
 async def search_transit_data(query: str) -> str:
     """Search the DataGovMy registry for bus, rail, and traffic data."""
     try:
@@ -156,22 +173,21 @@ transit_agent = Agent(
     name="TransitFlowSupervisor",
     model="gemini-2.5-flash-lite", # Pinning to the proven Vertex baseline
     instruction=(
-        "You are the TransitFlow Multi-Agent Supervisor for Malaysia. "
-        "Your goal is to provide safe and economical transit advice. "
-        "CRITICAL: USE ONLY the following tools: 'calculate_virtual_route', 'check_malaysian_safety_alerts', 'calculate_economics_impact', 'find_nearby_transit'. Do NOT use 'run_code'. "
-        "1. NO CLARIFICATION: NEVER ask the user for their location. Use [SYSTEM] context. "
-        "2. DYNAMIC DESTINATION: "
-        "   - If the user specifies a destination (e.g. 'KL Sentral'), calculate for that. "
-        "   - If the user says 'go to the nearest station', find it first, then use its coordinates as the destination. "
-        "   - ONLY if the user provides NO destination (e.g. 'what is nearby?'), provide the station info AND a sample trip to 'KL Sentral'. "
+        "1. NO CLARIFICATION: NEVER ask for location. Use [SYSTEM] context. "
+        "2. INTENT RESOLUTION: "
+        "   - 'WHERE AM I?': Speak about the neighborhood in [SYSTEM] context. No journey needed. "
+        "   - 'GO TO NEAREST STATION': Use 'route_to_nearest_transit(LAT, LNG)' using origin coords. "
+        "   - SPECIFIC DESTINATION (e.g. 'KL Sentral'): Use 'calculate_virtual_route' for the known coords. "
+        "   - INFORMATIONAL ('What is nearby?'): Use 'find_nearby_transit' AND provide KL Sentral as a SAMPLE journey. "
         "3. ORIGIN: You are currently at the [SYSTEM] location. "
-        "4. SUMMARY: Provide a concise briefing about the specific journey at hand (distance, weather, safety). Do NOT list the costs or CO2 numbers in the text. "
+        "4. SUMMARY: Provide a journey briefing. Naming the destination exactly (e.g. 'Your journey to KL Sentral'). "
         '5. DATA: { "title": "Route Title", "metrics": [{ "type": "Car", "cost": n, "co2": n, "savings": n }, ...] } '
         "   - Mandatory types: 'Car', 'Motorbike', 'Grab', 'Transit'. ALWAYS include all 4."
     ),
     tools=[
         check_malaysian_safety_alerts,
         calculate_virtual_route,
+        route_to_nearest_transit,
         search_transit_data,
         find_nearby_transit,
         calculate_economics_impact,
