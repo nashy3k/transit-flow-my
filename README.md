@@ -1,57 +1,35 @@
-# TransitFlow 🇲🇾 (Malaysian Transit & Safety Assistant)
+# 🏙️ TransitFlow 🇲🇾
 
-![TransitFlow Banner](https://img.shields.io/badge/Status-Live-success?style=for-the-badge&logo=google-cloud&logoColor=white)
-![License](https://img.shields.io/badge/License-Polyform--Noncommercial-blue?style=for-the-badge)
+**The Intelligent Subsidy & Mobility Advisor for a Resilient Malaysia.**
 
-TransitFlow (now **Public Safety Section 9**) is a next-generation, AI-driven transit and safety assistant designed specifically for the Malaysian landscape. It leverages the power of **Google ADK** (Agent Development Kit) and **Vertex AI** to provide real-time transit data, safety alerts from MetMalaysia, and carbon footprint analysis for sustainable travel.
-
----
-
-## 🚀 Recent Updates (April 2026)
-
-*   🛡️ **BudiProtocol Implementation**: New "Price Shielding" logic that compares the **RM 1.99 Budi95 Citizen Rate** against the market floating price to calculate actual trip savings.
-*   🚦 **Virtual Route Intelligence**: Implemented a Geodesic-based routing fallback (1.3x Road Multiplier) to ensure accurate distance estimation regardless of official API availability.
-*   💾 **Firestore Weekly Caching**: Integrated a 7-day persistent cache for the DataGovMy Fuel Registry to optimize backend performance and reduce external API dependency.
-*   🛰️ **Reactive GPS Context**: Full support for real-time `navigator.geolocation.watchPosition`, allowing instant agent context updates when F12 DevTools sensors are overridden.
-*   🗺️ **InfoBanjir Integration**: The "Live Warnings" widget is now linked directly to the official **MetMalaysia/Public InfoBanjir** maps portal.
+TransitFlow is a multi-agent AI system designed to navigate the economic and environmental complexities of modern Malaysian urban life. It integrates state-of-the-art **Geospatial Reasoning**, **Real-time National Safety Data**, and the **BudiProtocol Economics Engine.**
 
 ---
 
-## ✨ Core Features
+## 🚀 Key Features
 
-*   🏙️ **Hyper-Local Context**: Detects current location (GPS) and provides human-readable name hints (e.g., "KLCC" or "KL Sentral").
-*   ⚠️ **Localized Safety Filtering**: Transitioned from national noise to specific **State/City-level** alert filtering (e.g., Selangor, Kuala Lumpur) for better utility.
-*   🚆 **Open Data Transit Search**: Deep integration with `Data.gov.my` for bus, rail, and traffic registry lookups.
-*   🌱 **EcoNomics Impact Report**: Compares carbon footprint and fuel costs between Personal Cars (Market/Budi95), Grab (SKPS Commercial), and Public Transit.
-*   🛡️ **Hardened Security**: Implements the "Anti-Leak Protocol" to secure Firebase and API credentials.
-
----
-
-## 🏗️ Architecture (ADK Supervisor Agent)
-
-The system is powered by the `TransitFlowSupervisor` agent in `agents/supervisor.py`, which coordinates three specialized tools:
-1.  **Safety Analyst**: Monitors live Malaysian meteorological events with localized filtering.
-2.  **Transit Intelligence**: Queries government registries for local transit availability.
-3.  **Eco-Calculator**: Computes environmental and economic impacts using the **BudiProtocol**.
-4.  **Distance Estimator**: Native tool for geodesic distance calculation.
+-   **⛈️ Safety-First Routing**: Integrated with live **DataGovMy** meteorological telemetry to provide real-time flood and weather briefings on every journey query.
+-   **💰 BudiProtocol Engine**: A dynamic economics simulator that calculates the savings between the **Market Fuel Rate** (RM 3.87) and the **Budi95 Subsidized Rate** (RM 2.05).
+-   **🚆 Multi-Modal Optimization**: Direct comparison of Car, Motorbike, E-Hailing (Grab), and Public Transit (LRT/MRT/Bus) in a single executive view.
+-   **🧩 Scenario Navigator**: High-resilience frontend that flips between primary routes and nearest "Transit Hub" alternates to find the most economical journey.
+-   **🏥 High Resilience Tech**: Coordinate-first virtual routing with 1.3x geodesic fallbacks ensures destination targeting even when external map APIs underperform.
 
 ---
 
-## 🛠️ Technical Stack
+## 🛠️ Technical Architecture
 
-*   **Core Logic**: [Google ADK](https://github.com/google/adk) for multi-agent orchestration.
-*   **Intelligence**: [Vertex AI](https://cloud.google.com/vertex-ai) (Gemini 3 Flash/Pro) with Enterprise Routing.
-*   **Database**: **Cloud Firestore** for weekly metadata caching and price persistence.
-*   **Backend**: Python 3.12 (FastAPI), Uvicorn, Docker.
-*   **Frontend**: Modern HTML5, Vanilla CSS3 (Glassmorphism), Firebase Web SDK.
-*   **Infrastructure**: Google Cloud Run & Firebase Hosting.
-
----
-
-## 📜 License
-
-This project is licensed under the **Polyform Noncommercial License 1.0.0**. See the [LICENSE](LICENSE) file for details.
+-   **Brain**: Vertex AI (Gemini 2.5 Flash / Pro) orchestrated via the Google Agentic Development Kit (ADK).
+-   **Backend**: Python 3.12 (FastAPI) deployed on **Google Cloud Run** for high-concurrency serverless scalability.
+-   **Frontend**: Professional Vanilla JS/HTML5/CSS3 dashboard with JSON-RPC visual rendering, hosted on **Firebase**.
+-   **Storage**: Firebase Firestore for weekly fuel price indexing and metadata caching.
+-   **Registry**: Live SSE connection to the Malaysia Open Data registry (DataGovMy).
 
 ---
 
-*Built with ❤️ in Malaysia using Google Antigravity Agentic IDE.*
+## 📈 Impact
+
+TransitFlow empowers citizens to visualize the environmental and financial impact of their commute, incentivizing a shift toward public transit while safeguarding household budgets against energy price volatility.
+
+---
+
+*Built with ❤️ in Malaysia. Powered by **Google Gemini** and the **Google Cloud AI Stack**.* 🇲🇾🚆🎬📈
