@@ -24,15 +24,18 @@ TransitFlow is powered by a high-resilience, multi-agent AI framework designed f
 graph TD
     User([User Query]) --> Supervisor[Supervisor Agent]
     Supervisor --> Intent{Intent Resolution}
-    Intent -- Journey --> Geo[Geospatial Agent]
-    Intent -- Info --> Safety[Safety Agent]
+    Intent -- Journey --> Geo[Geospatial Skill / Tool]
+    Intent -- Info --> Safety[Safety Skill / Tool]
     Geo --> Eco[EcoNomics Engine]
-    Safety -- Request --> DGM[DataGovMy MCP Skill]
+    Safety -- Request --> DGM[DataGovMy MCP Registry]
     Eco -- Request --> DGM
     DGM -- Response --> Visual[Visual JSON Assembly]
     Visual --> Frontend[Frontend Dashboard]
     Frontend --> Render([Scenario History & Cards])
 ```
+
+> [!TIP]
+> **Architectural Note**: To ensure sub-second response times for national safety alerts, TransitFlow utilizes **Atomic Tool-Calling** (Skill Injection) rather than nested LLM agents. This provides the intelligence of a multi-agent system with the performance of a production-grade application.
 
 ### 🏛️ System Design
 ```mermaid
@@ -61,11 +64,20 @@ graph LR
     ADK --- Eco
 ```
 
--   **AI Core**: **Vertex AI (Gemini 2.5 Flash Lite)** orchestrated via the Google Agentic Development Kit (ADK).
+-   **AI Core**: **Vertex AI (Gemini 2.5 Flash Lite)** orchestrated via the **Google Agentic Development Kit (ADK)** using the **Supervisor-Tool Runner** pattern for autonomous reasoning.
 -   **Communication Protocol**: **Model Context Protocol (MCP)** via **FastMCP** for decoupled, resilient tool-calling.
 -   **Backend Engine**: **Python 3.12 (FastAPI)** deployed on **Google Cloud Run** for serverless auto-scaling.
 -   **Frontend**: Professional Vanilla JS/HTML5/CSS3 dashboard hosted on **Firebase**.
 -   **Registry Layer**: Real-time integration with the Malaysia Open Data registry (DataGovMy).
+
+---
+
+## 🏛️ ADK Orchestration Detail
+
+TransitFlow utilizes the **ADK `Runner`** to maintain session persistence and tool-calling integrity. 
+- **Supervisor Agent**: A single `TransitFlowSupervisor` acts as the primary reasoning node.
+- **Skill Injection**: Instead of high-latency subagents, we utilize **Atomic Tool Injection** where specialized "Skills" (Geospatial, Economics, Meteorological) are injected directly into the Supervisor's toolbelt via the ADK.
+- **Autonomous Reasoning**: The ADK handles the multi-step `thought -> action -> observation -> response` loop locally, ensuring the agent always cross-references weather safety before providing transit advice.
 
 ---
 
