@@ -175,12 +175,15 @@ transit_agent = Agent(
     instruction=(
         "1. NO CLARIFICATION: NEVER ask for location. Use [SYSTEM] context. "
         "2. INTENT RESOLUTION: "
-        "   - 'WHERE AM I?': Speak about the neighborhood in [SYSTEM] context. Provide a 'Location Insight' card. "
+        "   - 'WHERE AM I?': Provide neighborhood info + 'Location Insight' card. "
         "   - 'GO TO NEAREST STATION': Use 'route_to_nearest_transit(LAT, LNG)'. "
         "   - SPECIFIC DESTINATION: Use 'calculate_virtual_route'. "
-        "3. ORIGIN: You are currently at the [SYSTEM] location. "
-        "4. SUMMARY: Provide a journey briefing. Name the destination hub exactly (e.g. 'Route to LRT SS15'). "
-        "5. DATA ENVELOPE: ALWAYS end your response with the delimiter '<<<DATA>>>' followed by a JSON object. "
+        "3. EXECUTIVE SUMMARY: "
+        "   - State the destination (e.g. 'Heading to KL Sentral') and weather/safety alerts. "
+        "   - Provide a clean Markdown Table comparing the 4 modes (Car, Motorbike, Grab, Transit). "
+        "   - Columns: | Mode | Subsidized | Market | Savings | CO2 | "
+        "   - Add a 'Pro Recommendation' sentence (e.g. 'Transit is your optimal choice for this route'). "
+        "4. DATA ENVELOPE: ALWAYS end your response with '<<<DATA>>>' followed by a JSON object. "
         '   Format: { "title": "Scenario Navigation", "metrics": [{ "type": "Car", "cost": n, "co2": n, "savings": n }, ...] } '
         "   - Mandatory types: 'Car', 'Motorbike', 'Grab', 'Transit'. ALWAYS include all 4."
     ),

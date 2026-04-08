@@ -310,7 +310,7 @@
                             <button onclick="nextScenario()" class="hover:text-white transition-colors"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
                         </div>
                     </div>
-                    <div id="scenario-title" class="text-[10px] font-bold text-white/80 truncate mb-1 hidden"></div>
+                    <div id="scenario-title" class="text-[11px] font-black text-blue-400 uppercase tracking-[0.15em] py-2 border-b border-blue-500/30 mb-3 hidden"></div>
                     <div id="insights-container" class="space-y-4">
                         <div class="text-xs text-slate-500 italic p-4 text-center">
                             Ask for transit options to see cost & carbon analysis.
@@ -547,6 +547,12 @@
             }
             
             journeyHistory.push(scenario);
+            
+            // Rolling Limit: Max 5 scenarios to keep UI snappy
+            if (journeyHistory.length > 5) {
+                journeyHistory.shift();
+            }
+            
             currentScenarioIndex = journeyHistory.length - 1;
             updateScenarioView();
         }
@@ -570,8 +576,10 @@
                 indexLabel.innerText = `${currentScenarioIndex + 1} / ${journeyHistory.length}`;
             }
 
-            titleLabel.innerText = scenario.title;
+            // Ensure the title is punchy and visible
+            titleLabel.innerText = `Scenario: ${scenario.title}`;
             titleLabel.classList.remove('hidden');
+            titleLabel.style.display = 'block'; // Force layout refresh
 
             scenario.metrics.forEach(item => {
                 const card = document.createElement('div');
