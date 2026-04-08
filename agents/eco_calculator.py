@@ -6,7 +6,7 @@ class EcoNomicsCalculator:
     Uses inflated fuel prices to reflect fictional "Straits of Hormuz lockdown" scenario for the WOW factor.
     """
     # Assumptions
-    VOLATILE_FUEL_PRICE_RM_PER_LITER = 4.50  # Elevated from standard ~RM 2.05
+    VOLATILE_FUEL_PRICE_RM_PER_LITER = 3.87  # Matches README Market Rate
     
     # Consumption & Carbon Data (per km)
     # L/100km -> L/km = /100
@@ -18,7 +18,7 @@ class EcoNomicsCalculator:
     
     PUBLIC_TRANSIT_CO2_GRAMS_PER_KM = 30  # Assuming LRT/MRT efficiency
     
-    def calculate_impact(self, distance_km: float, ron95: float = 2.05, ron97: float = 3.47, ron95_skps: float = 2.05, budi_ron95: float = 1.99) -> str:
+    def calculate_impact(self, distance_km: float, ron95: float = 3.87, ron97: float = 4.50, ron95_skps: float = 2.05, budi_ron95: float = 2.05) -> str:
         if distance_km <= 0:
             return "Invalid distance for calculation."
             
@@ -43,7 +43,7 @@ class EcoNomicsCalculator:
         # Grab E-Hailing
         grab_fare = 5.00 + (1.50 * distance_km)
         grab_fuel_liters = self.CAR_LITERS_PER_KM * distance_km
-        grab_fuel_cost_skps = grab_fuel_liters * budi_ron95 # RM 1.99 SKPS
+        grab_fuel_cost_skps = grab_fuel_liters * budi_ron95 # RM 2.05 SKPS
         grab_fuel_cost_market = grab_fuel_liters * ron95    # RM 3.87 Market
         grab_driver_savings = grab_fuel_cost_market - grab_fuel_cost_skps
         grab_co2 = self.CAR_CO2_GRAMS_PER_KM * distance_km
@@ -53,7 +53,7 @@ class EcoNomicsCalculator:
         
         report = (
             f"🌍 **EcoNomics Impact Report** (Distance: {distance_km:.1f} km)\n"
-            f"*Source: April 2026 Firestore Cache | Market Rate: RM 3.87 | Budi95/SKPS: RM 1.99*\n\n"
+            f"*Source: April 2026 Firestore Cache | Market Rate: RM 3.87 | Budi95/SKPS: RM 2.05*\n\n"
             f"🚗 **Personal Car (Citizen Insights)**:\n"
             f"   - **Budi95 Subsidized Cost**: RM {car_cost_budi:.2f}\n"
             f"   - Unsubsidized Market Cost: RM {car_cost_market:.2f} (Savings: RM {car_savings:.2f})\n"
