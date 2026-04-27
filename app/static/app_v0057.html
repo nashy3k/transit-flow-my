@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TransitFlow | Kinetic Executive</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;500;700;800&family=Inter:wght@400;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mapbox/polyline@1.2.1/src/polyline.min.js"></script>
+    <style>
+        :root {
+            --surface-dim: #0c0e12;
+            --surface-container-low: #16181d;
+            --surface-container-high: #212329;
+            --surface-container-highest: #2d2f36;
+            --primary-cyan: #00d1ff;
+            --primary-gradient: linear-gradient(135deg, #a4e6ff 0%, #00d1ff 100%);
+            --secondary-teal: #44ddc1;
+            --tertiary-amber: #ffd5a9;
+            --radius: 1.5rem; /* 24px */
+            --transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--surface-dim);
+            color: #e2e2e8;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(190, 100%, 10%, 0.4) 0, transparent 50%),
+                radial-gradient(at 100% 100%, hsla(240, 100%, 8%, 0.4) 0, transparent 50%);
+            min-height: 100vh;
+            overflow-x: hidden;
+            letter-spacing: -0.011em;
+        }
+
+        h1, h2, h3, .headline {
+            font-family: 'Manrope', sans-serif;
+        }
+
+        /* Glassmorphism Refinement */
+        .glass-panel {
+            background: rgba(18, 20, 24, 0.4);
+            backdrop-filter: blur(24px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: var(--radius);
+        }
+
+        .glass-card {
+            background: linear-gradient(165deg, rgba(33, 35, 41, 0.6) 0%, rgba(18, 20, 24, 0.8) 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+            transition: var(--transition);
+        }
+
+        .glass-card:hover {
+            background: var(--surface-container-highest);
+            transform: translateY(-4px) scale(1.01);
+            border-color: rgba(0, 209, 255, 0.1);
+        }
+
+        /* Chat Message Animations */
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .msg-anim {
+            animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* Floating Nav with Dynamic Blur */
+        .floating-nav {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 92%;
+            max-width: 440px;
+            background: rgba(12, 14, 18, 0.8);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-radius: 4rem;
+            padding: 0.85rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-item {
+            color: #6a767d;
+            transition: var(--transition);
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            color: var(--primary-cyan);
+            transform: scale(1.1);
+        }
+
+        /* Pulsing FAB */
+        @keyframes fabPulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 209, 255, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(0, 209, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 209, 255, 0); }
+        }
+
+        .nav-fab {
+            width: 3.75rem;
+            height: 3.75rem;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #003543;
+            margin-top: -1.75rem;
+            transition: var(--transition);
+            animation: fabPulse 2s infinite;
+        }
+
+        /* Kinetic Data Bars */
+        .bar-stack {
+            display: flex;
+            align-items: flex-end;
+            gap: 0.6rem;
+            height: 140px;
+            margin-bottom: 0.75rem;
+        }
+
+        @keyframes bounceSlow {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+        .animate-bounce-slow { animation: bounceSlow 3s ease-in-out infinite; }
+
+        /* Leaflet Dark Mode Overrides - Simplified for Visibility */
+        .leaflet-container { background: #0c0e12 !important; border-radius: var(--radius); }
+        .leaflet-v-polyline { filter: drop-shadow(0 0 12px rgba(0, 209, 255, 0.8)); stroke-width: 6px !important; }
+        .v-bar {
+            border-radius: 6px 6px 2px 2px;
+            transition: height 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            height: 0;
+            position: relative;
+        }
+
+        .v-bar::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: inherit;
+            filter: blur(8px);
+            opacity: 0.3;
+            border-radius: inherit;
+        }
+
+        .pulse-red {
+            animation: pulse-red 2s infinite;
+        }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .v-bar-teal { background: linear-gradient(180deg, var(--secondary-teal) 0%, rgba(68, 221, 193, 0.1) 100%); }
+        .v-bar-amber { background: linear-gradient(180deg, var(--tertiary-amber) 0%, rgba(255, 213, 169, 0.1) 100%); }
+
+        /* Custom Scrollbar */
+        .hide-scrollbar::-webkit-scrollbar { width: 4px; }
+        .hide-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .hide-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
+
+        /* Loading Skeleton Animation */
+        @keyframes skeletonShimmer {
+            0% { opacity: 0.3; }
+            50% { opacity: 0.1; }
+            100% { opacity: 0.3; }
+        }
+        .skeleton { animation: skeletonShimmer 1.5s infinite ease-in-out; }
+
+        /* Tooltip Styles */
+        .v-bar-group { position: relative; }
+        .v-bar-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(-10px);
+            background: var(--surface-container-highest);
+            color: white;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 9px;
+            font-weight: 800;
+            white-space: nowrap;
+            opacity: 0;
+            transition: var(--transition);
+            pointer-events: none;
+            border: 1px solid rgba(0, 209, 255, 0.2);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        .v-bar:hover + .v-bar-tooltip { opacity: 1; transform: translateX(-50%) translateY(-15px); }
+    </style>
+</head>
+
+<body class="p-4 md:p-10 lg:p-16">
+    <div class="max-w-7xl mx-auto flex flex-col gap-10 pb-32">
+        <!-- Header -->
+        <header class="flex justify-between items-center">
+            <div class="flex items-center gap-5">
+                <div class="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group cursor-pointer hover:bg-cyan-500/10 transition-colors">
+                    <i data-lucide="train" class="text-cyan-400 w-6 h-6 group-hover:scale-110 transition-transform"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black tracking-tight headline">Transit<span class="text-cyan-400">Flow</span></h1>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
+                        <span class="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">Node: us-central1-active</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="auth-section" class="flex items-center gap-4">
+                 <button id="login-btn" class="text-xs font-bold uppercase tracking-[0.15em] text-cyan-400 px-6 py-2.5 rounded-full border border-cyan-400/20 hover:bg-cyan-400/5 transition-all active:scale-95">Connect Identity</button>
+                 <div id="user-info" class="hidden items-center gap-4 bg-white/5 p-1.5 pr-5 rounded-full border border-white/10">
+                    <img id="user-photo" src="" class="w-9 h-9 rounded-full shadow-lg" />
+                    <div class="flex flex-col">
+                        <span id="user-name" class="text-xs font-bold text-white">Executive</span>
+                        <button id="logout-btn" class="text-[9px] text-slate-500 uppercase tracking-widest font-bold hover:text-red-400 transition-colors">Detach</button>
+                    </div>
+                 </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Layout -->
+        <main class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            
+            <!-- Left Command Center -->
+            <div class="lg:col-span-8 flex flex-col gap-8">
+                <section>
+                    <h2 class="text-7xl font-black tracking-tighter headline mb-2">TRIPS</h2>
+                    <p class="text-sm text-slate-500 font-medium ml-1">Predictive Transit Orchestration v0057</p>
+                </section>
+
+                <!-- Interactive Chat Orchestrator -->
+                <div class="glass-panel h-[550px] flex flex-col overflow-hidden">
+                    <div id="chat-messages" class="flex-1 p-8 space-y-8 overflow-y-auto hide-scrollbar">
+                        <!-- Initial Message -->
+                        <div class="flex gap-5 items-start max-w-2xl msg-anim">
+                            <div class="w-10 h-10 rounded-xl bg-cyan-400/10 flex items-center justify-center flex-shrink-0 border border-cyan-400/20">
+                                <i data-lucide="bot" class="w-5 h-5 text-cyan-400"></i>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="text-sm p-5 rounded-3xl rounded-tl-none bg-white/5 border border-white/5 leading-relaxed text-slate-200">
+                                    Hello human, the TransitFlow engine is initialized. I have established a high-fidelity connection to your GPS and synchronized the latest DataGovMy flood sensors. Where shall we optimize your movement today?
+                                </div>
+                                <span class="text-[9px] text-slate-600 font-bold uppercase tracking-widest ml-1">Supervisor Agent | Now</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Input Console -->
+                    <div class="p-8 bg-black/20 border-t border-white/5">
+                        <div class="relative group">
+                            <input id="user-input" type="text" placeholder="Optimize route to: Bangsar South..." 
+                                   class="w-full bg-white/5 border border-white/10 rounded-2xl py-5 pl-8 pr-28 focus:ring-2 focus:ring-cyan-400/30 text-base placeholder-slate-600 transition-all outline-none" />
+                            <div class="absolute right-3 top-3 flex gap-2">
+                                <button id="voice-btn" class="p-3 text-slate-500 hover:text-cyan-400 transition-colors">
+                                    <i data-lucide="mic" class="w-5 h-5"></i>
+                                </button>
+                                <button id="send-btn" class="p-3 bg-cyan-400 text-[#001f28] rounded-xl hover:bg-cyan-300 transition-all active:scale-95 shadow-lg shadow-cyan-400/20">
+                                    <i data-lucide="send" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Environmental Situational Awareness -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="glass-card p-8 flex items-start gap-6 relative overflow-hidden group" id="safety-matrix-card">
+                        <div class="absolute top-0 left-0 w-1.5 h-full bg-amber-400/80"></div>
+                        <div class="p-4 bg-amber-400/10 rounded-2xl text-amber-400 group-hover:scale-110 transition-transform">
+                            <i data-lucide="wind" class="w-7 h-7"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-black uppercase tracking-[0.2em] text-amber-400">Safety Matrix</span>
+                                <span class="text-[10px] font-bold text-slate-500 uppercase">Live Update</span>
+                            </div>
+                            <p class="text-sm text-slate-300 leading-snug" id="safety-alert-text">
+                                Detecting regional environmental risks...
+                            </p>
+                        </div>
+                    </div>
+                    <div class="glass-card p-8 flex items-start gap-6 relative overflow-hidden group">
+                        <div class="absolute top-0 left-0 w-1.5 h-full bg-cyan-500/80"></div>
+                        <div class="p-4 bg-cyan-500/10 rounded-2xl text-cyan-400 group-hover:scale-110 transition-transform">
+                            <i data-lucide="fuel" class="w-7 h-7"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">Energy Matrix</span>
+                                <span class="text-[10px] font-bold text-slate-500 uppercase">Live Index</span>
+                            </div>
+                            <p class="text-sm text-slate-300 leading-snug" id="fuel-banner">
+                                Fetching latest energy market rates...
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Analytics Pane -->
+            <div class="lg:col-span-4 flex flex-col gap-8">
+                <!-- EcoNomics Visualization Panel -->
+                <div id="visual-insights" class="glass-panel p-10 flex flex-col h-full hidden">
+                    <div class="flex items-center justify-between mb-8">
+                        <div class="flex flex-col">
+                            <h3 class="text-xl font-black tracking-tight text-white headline">ECONOMICS</h3>
+                            <span class="text-[9px] uppercase tracking-[0.3em] text-cyan-400 font-bold">Efficiency Report</span>
+                        </div>
+                        <div id="scenario-nav" class="flex items-center gap-4 text-slate-500">
+                            <button onclick="prevScenario()" class="hover:text-white transition-colors"><i data-lucide="arrow-left-circle" class="w-6 h-6"></i></button>
+                            <span id="scenario-index" class="text-xs font-bold mono bg-white/5 px-2 py-1 rounded">1/1</span>
+                            <button onclick="nextScenario()" class="hover:text-white transition-colors"><i data-lucide="arrow-right-circle" class="w-6 h-6"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="bg-cyan-400/5 p-5 rounded-2xl border border-cyan-400/10 mb-10">
+                        <p class="text-xs font-bold text-cyan-300 uppercase tracking-widest mb-1">Scenario Analysis</p>
+                        <p class="text-sm text-slate-200" id="scenario-title">Journey Intelligence Engine</p>
+                    </div>
+
+                    <div id="insights-container" class="space-y-12 flex-1">
+                        <!-- Kinetic Charts -->
+                    </div>
+
+                    <div class="mt-auto pt-8 border-t border-white/5 flex items-center justify-between">
+                        <div class="flex flex-col group relative">
+                            <div class="flex items-center gap-1.5 mb-1">
+                                <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Carbon Savings</span>
+                                <i data-lucide="info" class="w-2.5 h-2.5 text-slate-600 cursor-help"></i>
+                                <!-- Savings Tooltip -->
+                                <div class="absolute bottom-full left-0 mb-3 w-56 p-4 bg-[#1a1d23] border border-cyan-400/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-50 text-[10px] leading-relaxed text-slate-300 shadow-2xl">
+                                    <span class="font-black text-cyan-400 block mb-1 uppercase tracking-tighter">Sustainability Metric</span>
+                                    The total KG of CO₂ offset by choosing <span class="text-secondary-teal font-bold">Public Transit</span> over a standard <span class="text-slate-400 font-bold">Internal Combustion Engine (Car)</span>.
+                                </div>
+                            </div>
+                            <span class="text-2xl font-black text-cyan-400 headline" id="total-offset">0.0<span class="text-xs ml-1">kg CO₂</span></span>
+                        </div>
+                        <div class="group relative flex items-center justify-center">
+                            <div class="w-12 h-12 rounded-full border-4 border-cyan-400/20 border-t-cyan-400 flex items-center justify-center relative cursor-help">
+                                <span class="text-[10px] font-bold text-cyan-400" id="efficiency-val">0%</span>
+                            </div>
+                            <!-- Efficiency Tooltip -->
+                            <div class="absolute bottom-full right-0 mb-3 w-48 p-3 bg-[#1a1d23] border border-cyan-400/20 rounded-xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-50 text-[10px] leading-relaxed text-slate-300 shadow-2xl">
+                                <span class="font-bold text-white block mb-1">Efficiency Score</span>
+                                Percentage of maximum possible carbon reduction achieved for this specific route.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="insights-empty" class="glass-panel p-16 flex flex-col items-center justify-center text-center">
+                    <div class="w-20 h-20 rounded-full bg-slate-800/20 flex items-center justify-center mb-6 skeleton">
+                        <i data-lucide="activity" class="w-8 h-8 text-slate-700"></i>
+                    </div>
+                    <h4 class="text-sm font-bold uppercase tracking-[0.2em] text-slate-600 mb-2">Awaiting Telemetry</h4>
+                    <p class="text-xs text-slate-700 max-w-[200px] leading-relaxed">
+                        Input a destination to generate your comparative EcoNomics efficiency report.
+                    </p>
+                </div>
+
+                <div class="glass-card overflow-hidden group h-[220px] min-h-[220px] relative border-cyan-400/20">
+                    <div id="route-map" class="w-full h-full bg-[#0c0e12] min-h-[220px]"></div>
+                    <div class="absolute top-4 left-4 z-[1000] pointer-events-none">
+                         <div class="glass-card px-3 py-1.5 flex items-center gap-2 border-cyan-400/30 bg-black/40">
+                            <div class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
+                            <span class="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Live Telemetry</span>
+                         </div>
+                    </div>
+                </div>
+
+                <!-- Proximity Scan Card -->
+                <div class="glass-card p-8 group cursor-pointer hover:bg-cyan-400/5 transition-all">
+                    <div class="flex items-center justify-between mb-4">
+                        <i data-lucide="radar" class="w-6 h-6 text-cyan-400 group-hover:rotate-45 transition-transform"></i>
+                        <span class="text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em]">Nearby Nodes</span>
+                    </div>
+                    <div class="space-y-4" id="nearby-nodes-container">
+                        <div class="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+                            <span class="text-xs font-bold text-slate-600 italic">No telemetry detected yet.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Atmospheric Bottom Nav -->
+    <nav class="floating-nav">
+        <div class="nav-item active"><i data-lucide="layout-grid" class="w-6 h-6"></i></div>
+        <div class="nav-item"><i data-lucide="navigation" class="w-6 h-6"></i></div>
+        <div class="nav-fab shadow-cyan-500/50 hover:scale-110 transition-transform active:scale-95 cursor-pointer">
+            <i data-lucide="plus" class="w-8 h-8"></i>
+        </div>
+        <div class="nav-item"><i data-lucide="clock" class="w-6 h-6"></i></div>
+        <div class="nav-item"><i data-lucide="user" class="w-6 h-6"></i></div>
+    </nav>
+
+    <div id="gps-status" class="fixed top-12 right-12 flex items-center gap-3 text-[10px] font-black mono text-slate-700 bg-black/40 pl-3 pr-1 py-1 rounded-full border border-white/5 backdrop-blur-md">
+        <span>GPS: <span id="gps-label" class="text-amber-500 animate-pulse uppercase">Acquiring...</span></span>
+        <button id="sync-gps" class="w-6 h-6 rounded-full bg-cyan-400/10 flex items-center justify-center text-cyan-400 hover:bg-cyan-400/20 transition-all">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+        </button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+
+        lucide.createIcons();
+
+        let app, auth, provider;
+        let currentUser = null;
+        let userLocation = null;
+        let journeyHistory = [];
+        let currentScenarioIndex = -1;
+        let routeMap = null;
+        let routeLayer = null;
+
+        async function initFirebase() {
+            try {
+                const response = await fetch('/config');
+                const data = await response.json();
+                app = initializeApp(data.firebaseConfig);
+                auth = getAuth(app);
+                provider = new GoogleAuthProvider();
+                setupAuth();
+            } catch (err) {
+                console.error("Critical: Initialization Failure", err);
+            }
+        }
+
+        function setupAuth() {
+            onAuthStateChanged(auth, user => {
+                const loginBtn = document.getElementById('login-btn');
+                const userInfo = document.getElementById('user-info');
+                if (user) {
+                    currentUser = user;
+                    loginBtn.classList.add('hidden');
+                    userInfo.classList.remove('hidden');
+                    userInfo.classList.add('flex');
+                    document.getElementById('user-name').innerText = user.displayName.split(' ')[0];
+                    document.getElementById('user-photo').src = user.photoURL;
+                } else {
+                    currentUser = null;
+                    loginBtn.classList.remove('hidden');
+                    userInfo.classList.add('hidden');
+                }
+            });
+            document.getElementById('login-btn').onclick = () => signInWithPopup(auth, provider);
+            document.getElementById('logout-btn').onclick = () => signOut(auth);
+        }
+
+        function updateGPS(pos) {
+            const newLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            
+            // Reduced threshold (0.00005 deg ~5.5m) for better simulation reactivity
+            if (!userLocation || 
+                Math.abs(userLocation.lat - newLocation.lat) > 0.00005 || 
+                Math.abs(userLocation.lng - newLocation.lng) > 0.00005) {
+                
+                userLocation = newLocation;
+                const lbl = document.getElementById('gps-label');
+                lbl.innerText = `ACTIVE (${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)})`;
+                lbl.classList.remove('text-amber-500', 'animate-pulse');
+                lbl.classList.add('text-green-400');
+                
+                fetchNearbyNodes();
+            }
+        }
+
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition(updateGPS, (err) => {
+                document.getElementById('gps-label').innerText = "ERROR (Check Perms)";
+            }, { enableHighAccuracy: true });
+        }
+
+        document.getElementById('sync-gps').onclick = () => {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(updateGPS);
+            }
+        };
+
+        async function fetchNearbyNodes() {
+            if (!userLocation) return;
+            try {
+                const res = await fetch(`/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}`);
+                const nodes = await res.json();
+                const container = document.getElementById('nearby-nodes-container');
+                
+                if (!nodes || nodes.length === 0) {
+                    container.innerHTML = `
+                        <div class="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+                            <span class="text-xs font-bold text-slate-500 italic">No nodes within range.</span>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = '';
+                nodes.forEach((node, idx) => {
+                    const div = document.createElement('div');
+                    div.className = `flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-cyan-400/20 transition-all ${idx === 0 ? 'border-cyan-400/30 bg-cyan-400/5' : ''}`;
+                    div.innerHTML = `
+                        <div class="flex flex-col">
+                            <span class="text-xs font-bold text-slate-300">${node.name}</span>
+                            <span class="text-[8px] uppercase tracking-widest text-slate-600 font-bold">${node.line}</span>
+                        </div>
+                        <span class="text-[10px] font-bold mono ${idx === 0 ? 'text-cyan-400' : 'text-slate-500'}">${node.distance.toFixed(2)} KM</span>
+                    `;
+                    container.appendChild(div);
+                });
+            } catch (err) {
+                document.getElementById('nearby-nodes-container').innerHTML = `
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-red-500/5 border border-red-500/20">
+                        <span class="text-xs font-bold text-red-400">Node Sync Failed</span>
+                    </div>
+                `;
+            }
+        }
+
+        async function sendMessage(text) {
+            if (!text) return;
+            // Reveal insights container immediately for visual feedback
+            document.getElementById('insights-container').classList.remove('hidden');
+            addMessage(text, 'user');
+            document.getElementById('user-input').value = '';
+
+            try {
+                const idToken = currentUser ? await currentUser.getIdToken() : "local-dev-token";
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                    body: JSON.stringify({ message: text, location: userLocation })
+                });
+                const data = await response.json();
+                addMessage(data.response || "Hello human, I've processed your location context. Please see the updated telemetry in the side panels.", 'ai');
+                if (data.visual_data) renderInsights(data.visual_data);
+            } catch (err) {
+                addMessage(`Communication Error: ${err.message}`, 'ai');
+            }
+        }
+
+        function addMessage(text, side) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = side === 'user' ? 'flex gap-5 items-start max-w-2xl ml-auto flex-row-reverse msg-anim' : 'flex gap-5 items-start max-w-2xl msg-anim';
+            div.innerHTML = `
+                <div class="w-10 h-10 rounded-xl ${side === 'user' ? 'bg-white/5 border-white/10' : 'bg-cyan-400/10 border-cyan-400/20'} flex items-center justify-center flex-shrink-0 border">
+                    <i data-lucide="${side === 'user' ? 'user' : 'bot'}" class="w-5 h-5 ${side === 'user' ? 'text-slate-400' : 'text-cyan-400'}"></i>
+                </div>
+                <div class="space-y-2">
+                    <div class="text-sm p-5 rounded-3xl ${side === 'user' ? 'rounded-tr-none bg-cyan-400/5' : 'rounded-tl-none bg-white/5'} border border-white/5 leading-relaxed text-slate-200">
+                        ${text}
+                    </div>
+                    <span class="text-[9px] text-slate-600 font-bold uppercase tracking-widest ml-1">${side === 'user' ? 'You' : 'Supervisor'} | Just now</span>
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+            lucide.createIcons();
+        }
+
+        function renderInsights(data) {
+            let scenario = Array.isArray(data) ? { title: "Refined Journey", metrics: data } : data;
+            journeyHistory.push(scenario);
+            if (journeyHistory.length > 5) journeyHistory.shift();
+            currentScenarioIndex = journeyHistory.length - 1;
+            updateInsightsView();
+        }
+
+        function updateInsightsView() {
+            const container = document.getElementById('insights-container');
+            const empty = document.getElementById('insights-empty');
+            const pane = document.getElementById('visual-insights');
+            const scenario = journeyHistory[currentScenarioIndex];
+            if (!scenario) return;
+
+            // Phase 3 Sync: Update Nearby Nodes if journey data contains them
+            const nodeContainer = document.getElementById('nearby-nodes-container');
+            nodeContainer.innerHTML = ''; // Always clear first to prevent stale data
+            if (scenario.stations && scenario.stations.length > 0) {
+                scenario.stations.forEach((node, idx) => {
+                    const div = document.createElement('div');
+                    div.className = `flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-cyan-400/20 transition-all ${idx === 0 ? 'border-cyan-400/30 bg-cyan-400/5' : ''}`;
+                    div.innerHTML = `
+                        <div class="flex flex-col">
+                            <span class="text-[10px] font-black text-cyan-400/50 uppercase mb-1 tracking-tighter">Journey Node</span>
+                            <span class="text-xs font-bold text-slate-300">${node.name}</span>
+                            <span class="text-[8px] uppercase tracking-widest text-slate-600 font-bold">${node.line}</span>
+                        </div>
+                        <span class="text-[10px] font-bold mono ${idx === 0 ? 'text-cyan-400' : 'text-slate-500'}">${node.distance} KM</span>
+                    `;
+                    nodeContainer.appendChild(div);
+                });
+                lucide.createIcons();
+            }
+
+            // Phase 3 Sync: Update Safety Matrix if journey data contains it
+            if (scenario.safety) {
+                const safetyText = document.getElementById('safety-alert-text');
+                const safetyCard = document.getElementById('safety-matrix-card');
+                
+                safetyText.innerText = scenario.safety;
+                if (scenario.safety.toLowerCase().includes('warning') || scenario.safety.toLowerCase().includes('flood') || scenario.safety.toLowerCase().includes('storm')) {
+                    safetyCard.classList.add('pulse-red', 'border-red-500/50');
+                    safetyText.classList.add('text-red-400', 'font-bold');
+                } else {
+                    safetyCard.classList.remove('pulse-red', 'border-red-500/50');
+                    safetyText.classList.remove('text-red-400', 'font-bold');
+                }
+            }
+
+            empty.classList.add('hidden');
+            pane.classList.remove('hidden');
+            container.innerHTML = '';
+            
+            document.getElementById('scenario-index').innerText = `${currentScenarioIndex + 1}/${journeyHistory.length}`;
+            document.getElementById('scenario-title').innerText = scenario.title || "Calculated Route";
+
+            // WOW: Traffic Delay Badge (Now constrained to Title Area)
+            if (scenario.traffic) {
+                const trafficBadge = document.createElement('div');
+                trafficBadge.className = 'mt-4 flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-xl';
+                trafficBadge.innerHTML = `
+                    <div class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                    <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest leading-relaxed">${scenario.traffic}</span>
+                `;
+                container.prepend(trafficBadge); // Put it at the top of the insights, below the header
+            }
+
+            // WOW: Polyline Map Update
+            if (scenario.polyline && scenario.polyline !== "...") {
+                initOrUpdateMap(scenario.polyline);
+            }
+
+            const metrics = scenario.metrics || [];
+
+            // Robust Float Parsing to prevent NaN/Infinity display
+            const parseMetric = (val) => {
+                const parsed = parseFloat(val);
+                return isNaN(parsed) || !isFinite(parsed) ? 0.1 : parsed; // 0.1 to keep bars visible
+            };
+
+            const parsedMetrics = (metrics && metrics.length > 0) ? metrics.map(m => ({
+                co2: parseMetric(m.co2),
+                cost: parseMetric(m.cost)
+            })) : [{co2: 0.1, cost: 0.1}, {co2: 0.1, cost: 0.1}, {co2: 0.1, cost: 0.1}, {co2: 0.1, cost: 0.1}];
+
+            const maxCO2 = Math.max(...parsedMetrics.map(m => m.co2), 0.1);
+            const maxCost = Math.max(...parsedMetrics.map(m => m.cost), 0.1);
+            const minCO2 = Math.min(...parsedMetrics.map(m => m.co2));
+            const totalSavings = Math.max(0, maxCO2 - minCO2).toFixed(1);
+            const efficiency = maxCO2 > 0.1 ? Math.round((totalSavings / maxCO2) * 100) : 0;
+            
+            document.getElementById('total-offset').innerHTML = `${totalSavings}<span class="text-xs ml-1">kg CO2</span>`;
+            document.getElementById('efficiency-val').innerText = `${efficiency}%`;
+
+            // Chart Groupings
+            const chartArea = document.createElement('div');
+            chartArea.className = 'grid grid-cols-2 gap-8';
+
+            const co2Group = document.createElement('div');
+            co2Group.innerHTML = `
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="w-3 h-3 rounded-full bg-secondary-teal shadow-[0_0_8px_#44ddc1]"></span>
+                    <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">CO2 Redux</span>
+                </div>
+                <div class="bar-stack" id="co2-stack"></div>
+                <div class="text-center font-bold mono text-[10px] text-slate-600">Kilograms</div>
+            `;
+
+            const costGroup = document.createElement('div');
+            costGroup.innerHTML = `
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="w-3 h-3 rounded-full bg-tertiary-amber shadow-[0_0_8px_#ffd5a9]"></span>
+                    <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Cost Save</span>
+                </div>
+                <div class="bar-stack" id="cost-stack"></div>
+                <div class="text-center font-bold mono text-[10px] text-slate-600">MYR</div>
+            `;
+
+            chartArea.appendChild(co2Group);
+            chartArea.appendChild(costGroup);
+            container.appendChild(chartArea);
+
+            parsedMetrics.forEach((item, idx) => {
+                const modes = ['Car', 'Moto', 'Grab', 'Transit'];
+                const mode = modes[idx] || 'Other';
+
+                const co2Wrapper = document.createElement('div');
+                co2Wrapper.className = 'v-bar-group flex-1 flex flex-col items-center h-full justify-end';
+                const co2Bar = document.createElement('div');
+                co2Bar.className = 'v-bar v-bar-teal w-full cursor-help';
+                const co2H = (item.co2 / maxCO2) * 90 + 10; 
+                const co2Tip = document.createElement('div');
+                co2Tip.className = 'v-bar-tooltip';
+                co2Tip.innerHTML = `<span class="text-cyan-300">${mode}</span>: ${item.co2.toFixed(2)}kg<br><span class="text-[7px] text-slate-400">Carbon Output</span>`;
+                co2Wrapper.appendChild(co2Bar);
+                co2Wrapper.appendChild(co2Tip);
+                
+                const costWrapper = document.createElement('div');
+                costWrapper.className = 'v-bar-group flex-1 flex flex-col items-center h-full justify-end';
+                const costBar = document.createElement('div');
+                costBar.className = 'v-bar v-bar-amber w-full cursor-help';
+                const costH = (item.cost / maxCost) * 90 + 10;
+                const costTip = document.createElement('div');
+                costTip.className = 'v-bar-tooltip';
+                costTip.innerHTML = `<span class="text-amber-300">${mode}</span>: RM ${item.cost.toFixed(2)}<br><span class="text-[7px] text-slate-400">Travel Cost</span>`;
+                costWrapper.appendChild(costBar);
+                costWrapper.appendChild(costTip);
+
+                // Simple Labels
+                const co2Label = document.createElement('div');
+                co2Label.className = 'text-[7px] text-slate-500 mt-1 uppercase font-bold';
+                co2Label.innerText = mode.substring(0,3);
+                co2Wrapper.appendChild(co2Label);
+
+                const costLabel = document.createElement('div');
+                costLabel.className = 'text-[7px] text-slate-500 mt-1 uppercase font-bold';
+                costLabel.innerText = mode.substring(0,3);
+                costWrapper.appendChild(costLabel);
+
+                document.getElementById('co2-stack').appendChild(co2Wrapper);
+                document.getElementById('cost-stack').appendChild(costWrapper);
+
+                setTimeout(() => {
+                    co2Bar.style.height = `${co2H}%`;
+                    costBar.style.height = `${costH}%`;
+                }, 100 * idx);
+            });
+            lucide.createIcons();
+        }
+
+        function initOrUpdateMap(encodedPolyline) {
+            console.log("Map Heartbeat: Initializing with polyline length", encodedPolyline?.length);
+            const mapEl = document.getElementById('route-map');
+            if (!routeMap) {
+                routeMap = L.map('route-map', {
+                    zoomControl: false,
+                    attributionControl: false
+                }).setView([3.1390, 101.6869], 12);
+                
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap &copy; CARTO'
+                }).addTo(routeMap);
+                
+                setTimeout(() => {
+                    routeMap.invalidateSize();
+                    console.log("Map Heartbeat: Force Invalidate Size triggered");
+                }, 500);
+            }
+
+            if (!encodedPolyline) {
+                routeMap.setView([3.1390, 101.6869], 12);
+                return;
+            }
+
+            try {
+                const points = polyline.decode(encodedPolyline);
+                const latLngs = points.map(p => [p[0], p[1]]);
+
+                if (routeLayer) routeMap.removeLayer(routeLayer);
+                
+                routeLayer = L.polyline(latLngs, {
+                    color: '#00d1ff',
+                    weight: 6,
+                    opacity: 0.9,
+                    lineJoin: 'round',
+                    className: 'leaflet-v-polyline'
+                }).addTo(routeMap);
+
+                routeMap.invalidateSize();
+                routeMap.fitBounds(routeLayer.getBounds(), { padding: [40, 40], maxZoom: 16 });
+                console.log("Map Heartbeat: Polyline rendered, bounds fitted (MaxZoom: 16)");
+            } catch (err) {
+                console.error("Map Heartbeat Error:", err);
+            }
+        }
+
+        async function fetchLiveStats() {
+            try {
+                const res = await fetch('/stats');
+                const data = await res.json();
+                
+                const weatherBanner = document.getElementById('safety-alert-text');
+                if (data.flood > 0) {
+                    weatherBanner.innerText = `CRITICAL: ${data.flood} Flood Alerts detected in the Klang Valley. Exercise caution.`;
+                    weatherBanner.parentElement.previousElementSibling.classList.add('text-red-500');
+                } else {
+                    weatherBanner.innerText = `Safety Matrix Nominal. No active flood alerts reported by DataGovMy.`;
+                }
+
+                const fuelBanner = document.getElementById('fuel-banner');
+                fuelBanner.innerText = `RON95: ${data.fuel} | BUDI: ${data.budi}. Energy index stable.`;
+                
+                lucide.createIcons();
+            } catch (err) {
+                console.error("Stats fetch failure", err);
+            }
+        }
+
+        // Poll Live Stats every 60s
+        setInterval(fetchLiveStats, 60000);
+        fetchLiveStats();
+
+        window.prevScenario = () => { if (currentScenarioIndex > 0) { currentScenarioIndex--; updateInsightsView(); } };
+        window.nextScenario = () => { if (currentScenarioIndex < journeyHistory.length - 1) { currentScenarioIndex++; updateInsightsView(); } };
+
+        document.getElementById('send-btn').onclick = () => sendMessage(document.getElementById('user-input').value);
+        document.getElementById('user-input').onkeydown = (e) => { if (e.key === 'Enter') sendMessage(e.target.value); };
+
+        // Initialize EventSource for Phase 2 Alerts
+        const eventSource = new EventSource('/events');
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'shutdown') {
+                console.log("Server shutdown signal received. Detaching stream...");
+                eventSource.close();
+                return;
+            }
+            const safetyCard = document.getElementById('safety-matrix-card');
+            const alertText = document.getElementById('safety-alert-text');
+            
+            if (data.type === 'flood' || data.type === 'delay') {
+                safetyCard.classList.add('pulse-red', 'border-red-500/50');
+                alertText.innerText = data.message;
+                alertText.classList.remove('text-slate-500');
+                alertText.classList.add('text-red-400', 'font-bold');
+            } else if (data.type === 'system') {
+                safetyCard.classList.remove('pulse-red', 'border-red-500/50');
+                alertText.innerText = 'No active environmental threats detected in vicinity.';
+                alertText.classList.add('text-slate-500');
+                alertText.classList.remove('text-red-400', 'font-bold');
+            }
+        };
+
+        // Initialize App
+        initFirebase();
+        fetchLiveStats();
+    </script>
+</body>
+</html>

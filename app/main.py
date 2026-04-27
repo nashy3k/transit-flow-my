@@ -2,11 +2,13 @@
 import os
 import asyncio
 import uuid
+import json
+import ast
 import firebase_admin
 from firebase_admin import auth as firebase_auth, firestore
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -30,7 +32,58 @@ from agents.supervisor import process_query_adk
 #    api_key=os.environ.get("OPIK_API_KEY", "dummy-key-until-setup")
 # )
 
-app = FastAPI(title="TransitFlow API")
+# --- HARD-EXIT PROTOCOL: Force kill hanging processes on Ctrl+C 🎬📈 🇲🇾🚆stack
+import signal
+import sys
+
+def force_exit_handler(sig, frame):
+    print("\n🛑 TransitFlow: Immediate Shutdown Triggered...")
+    # Give it 1s to send the SSE sentinel, then KILL
+    def delayed_kill():
+        import time
+        time.sleep(1.5)
+        print("💥 TransitFlow: Forcefully terminated.")
+        os._exit(0)
+    
+    import threading
+    threading.Thread(target=delayed_kill, daemon=True).start()
+    # Trigger standard graceful exit first
+    sys.exit(0)
+
+try:
+    signal.signal(signal.SIGINT, force_exit_handler)
+    signal.signal(signal.SIGTERM, force_exit_handler)
+except:
+    pass # Fallback if specific OS signals are restricted
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    print("🚀 TransitFlow Engine: Ignition")
+    yield
+    # Shutdown logic
+    print("🛑 TransitFlow Engine: Powering Down")
+    # Send shutdown sentinel to clear SSE streams
+    try:
+        # Clear the queue first to make room for the kill signal
+        while not event_queue.empty():
+            event_queue.get_nowait()
+        await asyncio.wait_for(event_queue.put({"type": "shutdown", "message": "Kill"}), timeout=0.5)
+    except:
+        pass
+    
+    if 'vector_service' in globals():
+        try:
+            pool = await vector_service.get_pool()
+            if pool and pool != "FAILED":
+                await asyncio.wait_for(pool.close(), timeout=2.0)
+                print("📦 VectorService: Connection Pool Closed")
+        except:
+            print("📦 VectorService: Forcefully disconnected")
+
+app = FastAPI(title="TransitFlow API", lifespan=lifespan)
 
 # Middleware
 app.add_middleware(
@@ -49,13 +102,22 @@ class ChatRequest(BaseModel):
     sessionId: str = None
     location: Optional[Dict[str, float]] = None # Autonomous Context Field
 
+# Global Event Queue for Pub/Sub Simulation
+event_queue = asyncio.Queue()
+
+class AlertEvent(BaseModel):
+    type: str
+    message: str
+    timestamp: str
+
 # --- AUTH DEPENDENCY (The Security Guard) ---
 async def verify_user(authorization: str = Header(None)) -> str:
     """Verify the Firebase ID token in the Authorization header."""
+    # Prioritize SKIP_AUTH for local development environments
+    if os.environ.get("SKIP_AUTH") == "true":
+        return "local_dev_user"
+
     if not authorization:
-        # For local dry-runs we allow bypass if explicitly configured
-        if os.environ.get("SKIP_AUTH") == "true":
-            return "local_dev_user"
         raise HTTPException(status_code=401, detail="Missing Authorization Header")
 
     if not authorization.startswith("Bearer "):
@@ -70,7 +132,7 @@ async def verify_user(authorization: str = Header(None)) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 async def get_index():
-    with open("app/static/app_v0055.html") as f:
+    with open("app/static/app_v0057.html") as f:
         return f.read()
 
 @app.post("/chat")
@@ -92,8 +154,14 @@ async def chat(request: ChatRequest, user_email: str = Depends(verify_user)):
             user_location={"lat": lat, "lng": lng} if lat and lng else None
         )
         
-        # Parse JSON if response is a JSON string (for Visual Insights)
-        # New Robust Delimiter-based Parsing
+        try:
+            print(f"--- RAW AGENT RESPONSE: {ai_raw} ---")
+        except UnicodeEncodeError:
+            print(f"--- RAW AGENT RESPONSE: [Encoding Error - Response contains Unicode/Emojis] ---")
+        except Exception as e:
+            print(f"Error printing response: {str(e)}")
+            
+        # --- DATA EXTRACTION & SCRUBBING ---
         chat_text = ai_raw
         visual_data = None
         
@@ -103,39 +171,81 @@ async def chat(request: ChatRequest, user_email: str = Depends(verify_user)):
                 chat_text = parts[0].strip()
                 json_str = parts[1].strip()
                 
-                # Cleanup any potential markdown baggage
+                # Robust Backslash Sanitization for Polylines
+                json_str = json_str.replace("\\", "\\\\")
+                # Handle common markdown baggage
                 json_str = json_str.replace("```json", "").replace("```", "").strip()
                 
-                # Try parsing the data object/array
-                try:
-                    visual_data = json.loads(json_str)
-                except:
-                    import ast
-                    clean_str = json_str.replace("null", "None").replace("true", "True").replace("false", "False")
-                    visual_data = ast.literal_eval(clean_str)
-                    
+                # Extract clean JSON block
+                start_idx = json_str.find("{")
+                end_idx = json_str.rfind("}") + 1
+                if start_idx != -1 and end_idx != 0:
+                    try:
+                        visual_data = json.loads(json_str[start_idx:end_idx])
+                    except Exception as json_err:
+                        print(f"JSON Parse failed, trying fallback: {json_err}")
+                        import ast
+                        clean_str = json_str[start_idx:end_idx].replace("null", "None").replace("true", "True").replace("false", "False")
+                        visual_data = ast.literal_eval(clean_str)
+                
                 # Standardize to { "title": ..., "metrics": [...] }
                 if isinstance(visual_data, list):
                     visual_data = { "title": "Calculated Journey", "metrics": visual_data }
                 elif isinstance(visual_data, dict) and "metrics" not in visual_data:
-                    # Attempt to fix single objects
                     visual_data = { "title": visual_data.get("title", "Insight"), "metrics": [visual_data] }
             except Exception as e:
                 print(f"Delimiter Parsing failed: {e}")
-                # chat_text remains ai_raw as fallback
                 pass
-        else:
-            # Legacy fallback if agent forgets delimiter
-            if "{" in ai_raw and "}" in ai_raw:
+        
+        # --- HARD POLYLINE SHIELD: Strip any leaked polyline strings from chat ---
+        import re
+        # Scrub raw polylines (>50 alphanumeric chars)
+        chat_text = re.sub(r'[a-zA-Z0-9\-_]{50,}', '[Map Data]', chat_text)
+        # Scrub technical metadata
+        chat_text = re.sub(r'--- TOOL_METADATA:.*?---', '', chat_text, flags=re.DOTALL)
+        chat_text = re.sub(r'\[STATIONS_DATA\]:.*?$', '', chat_text, flags=re.MULTILINE)
+        chat_text = re.sub(r'TOOL_METADATA:.*?$', '', chat_text, flags=re.MULTILINE)
+        
+        # --- PHASE 3 ROBUST SYNC: Fallback Extraction ---
+        # Lightweight models often drop keys from the JSON envelope to save tokens.
+        # We manually extract the safety and station data from the markdown text to guarantee UI sync.
+        import re
+        if isinstance(visual_data, dict):
+            if "safety" not in visual_data:
+                # Extract Safety Advisory
+                safety_match = re.search(r'\*\*Safety Advisory: (.*?)\*\*', chat_text, re.IGNORECASE)
+                if safety_match:
+                    visual_data["safety"] = safety_match.group(1)
+                elif "Thunderstorms Warning" in chat_text:
+                    visual_data["safety"] = "Thunderstorms Warning active in the area."
+            
+            # Extract Stations from [STATIONS_DATA] block
+            station_match = re.search(r'\[STATIONS_DATA\]: (\[.*?\])', ai_raw)
+            if station_match:
                 try:
-                    start = ai_raw.find("{")
-                    end = ai_raw.rfind("}") + 1
-                    json_str = ai_raw[start:end]
-                    data = json.loads(json_str) if "{" in json_str else {}
-                    chat_text = data.get("chat_response", ai_raw)
-                    visual_data = data.get("visual_data", None)
+                    visual_data["stations"] = json.loads(station_match.group(1))
                 except:
                     pass
+            elif "stations" not in visual_data or not visual_data["stations"]:
+                # Extract Nearest Station
+                station_match = re.search(r'\*\*Nearest Station\*\*: ([^\(]+) \(([0-9.]+) km', chat_text, re.IGNORECASE)
+                if station_match:
+                    visual_data["stations"] = [{
+                        "name": station_match.group(1).strip(),
+                        "line": "Detected Node",
+                        "distance": float(station_match.group(2))
+                    }]
+            
+            # Extract Polyline and Traffic Delay from TOOL_METADATA
+            if "polyline" not in visual_data or not visual_data["polyline"]:
+                meta_match = re.search(r'--- TOOL_METADATA: (.*?) ---', ai_raw)
+                if meta_match:
+                    try:
+                        meta = json.loads(meta_match.group(1))
+                        visual_data["polyline"] = meta.get("polyline", "")
+                        visual_data["traffic"] = f"+{meta.get('traffic_delay', 0)} min delay"
+                    except:
+                        pass
 
         return {
             "response": chat_text,
@@ -150,6 +260,63 @@ async def chat(request: ChatRequest, user_email: str = Depends(verify_user)):
             "sessionId": session_id,
             "status": "error"
         }
+
+@app.get("/nearby")
+async def get_nearby(lat: float, lng: float):
+    """Calculates the 3 nearest transit nodes based on haversine distance."""
+    import json
+    import math
+    
+    def haversine(lat1, lon1, lat2, lon2):
+        R = 6371  # Earth radius in km
+        dLat = math.radians(lat2 - lat1)
+        dLon = math.radians(lon2 - lon1)
+        a = math.sin(dLat / 2) * math.sin(dLat / 2) + \
+            math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * \
+            math.sin(dLon / 2) * math.sin(dLon / 2)
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        return R * c
+
+    try:
+        with open("app/data/malaysian_rail_nodes.json", "r") as f:
+            data = json.load(f)
+            
+        stations = data.get("stations", [])
+        for s in stations:
+            s["distance"] = haversine(lat, lng, s["lat"], s["lng"])
+            
+        # Sort by distance and take top 3
+        sorted_stations = sorted(stations, key=lambda x: x["distance"])[:3]
+        
+        return sorted_stations
+    except Exception as e:
+        print(f"Nearby fetch error: {e}")
+        return []
+
+@app.post("/publish")
+async def publish_event(event: AlertEvent):
+    await event_queue.put(event.dict())
+    return {"status": "event_queued"}
+
+@app.get("/events")
+async def event_stream(request: Request):
+    async def event_generator():
+        while True:
+            if await request.is_disconnected():
+                break
+            try:
+                # Fast heartbeat for responsive shutdown
+                event = await asyncio.wait_for(event_queue.get(), timeout=0.5)
+                if event.get("type") == "shutdown":
+                    break
+                yield f"data: {json.dumps(event)}\n\n"
+            except asyncio.TimeoutError:
+                yield ": ping\n\n"
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.get("/sim")
+async def get_sim_deck():
+    return FileResponse("app/static/sim_deck.html")
 
 @app.get("/stats")
 async def get_stats():
@@ -179,7 +346,7 @@ async def get_stats():
         }
     except Exception as e:
         print(f"Stats fetch error: {e}")
-        return {"fuel": "RM 3.87", "flood": "--", "uptime": "98%"}
+        return {"fuel": "RM 3.87", "budi": "RM 1.99", "flood": "--", "uptime": "98%"}
 
 @app.get("/config")
 async def get_config():

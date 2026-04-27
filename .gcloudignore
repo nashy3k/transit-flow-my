@@ -11,3 +11,10 @@ __pycache__/
 !pyproject.toml
 !agents/
 !app/
+
+# Antigravity Security Standard
+.env
+*.json
+*.key
+.brain/
+artifacts/

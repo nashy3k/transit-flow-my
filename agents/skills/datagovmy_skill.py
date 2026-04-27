@@ -1,12 +1,14 @@
+from typing import Dict, Any, List
+from app.vector_service import VectorService
+import datetime
 import httpx
 import json
-import os
-from typing import Dict, Any, List
 
 class DataGovMySkill:
     """
     A skill to interact with the Malaysia Open Data MCP server (mcp-datagovmy).
     Uses direct POST requests with JSON-RPC over SSE format.
+    Unified Cloud SQL Caching enabled for Phase 3.
     """
     def __init__(self, endpoint: str = "https://mcp.techmavie.digital/datagovmy/mcp"):
         self.endpoint = endpoint
@@ -14,8 +16,20 @@ class DataGovMySkill:
             "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream"
         }
+        self.vector_service = VectorService()
 
     async def _call_tool(self, tool_name: str, arguments: Dict[str, Any] = None) -> Any:
+        # 1. Try Cache First (Phase 3 Unified Caching)
+        cache_key = {"tool": tool_name, "args": arguments or {}}
+        try:
+            cached = await self.vector_service.get_cached_api_response("datagovmy", cache_key)
+            if cached:
+                print(f"CloudCache: Hit for {tool_name}")
+                return cached
+        except Exception as e:
+            print(f"CloudCache Error (Read): {e}")
+
+        # 2. Fetch Live
         payload = {
             "jsonrpc": "2.0",
             "id": 1,
@@ -28,17 +42,33 @@ class DataGovMySkill:
         
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(self.endpoint, headers=self.headers, json=payload)
-            # The response is in SSE format: "event: message\ndata: {JSON}\n\n"
             text = response.text
+            result_text = "No data received from server."
+            
             if "data: " in text:
                 data_json = text.split("data: ")[1].strip()
-                # Remove trailing markers if any
                 if data_json.endswith("event:"): data_json = data_json[:-6].strip()
                 parsed = json.loads(data_json)
                 if "error" in parsed:
-                    return f"Error: {parsed['error'].get('message', 'Unknown error')}"
-                return parsed["result"]["content"][0]["text"]
-            return "No data received from server."
+                    result_text = f"Error: {parsed['error'].get('message', 'Unknown error')}"
+                else:
+                    result_text = parsed["result"]["content"][0]["text"]
+            
+            # 3. Save to Cache
+            # Intelligent TTL Logic (Phase 3 Optimization)
+            ttl = 3600 # Default 1 hour
+            if "fuelprice" in str(arguments):
+                ttl = 604800 # 7 Days (Weekly fuel cycle)
+            elif "weather" in tool_name or "flood" in tool_name:
+                ttl = 1800 # 30 Minutes (Safety critical)
+
+            try:
+                await self.vector_service.cache_api_response("datagovmy", cache_key, result_text, ttl_seconds=ttl)
+            except Exception as e:
+                print(f"CloudCache Error (Write): {e}")
+                print(f"CloudCache Error (Write): {e}")
+                
+            return result_text
 
     async def search_all(self, query: str) -> str:
         """Searches across datasets and dashboards."""
@@ -60,37 +90,13 @@ class DataGovMySkill:
 
     async def get_latest_fuel_prices(self) -> Dict[str, float]:
         """
-        Fetches the latest weekly fuel prices with Firestore caching (Budi95 Update).
-        Checks if the last sync was within 7 days; otherwise fetches from Data.Gov.My.
+        Fetches the latest weekly fuel prices with Cloud SQL caching.
         """
-        from firebase_admin import firestore
-        import datetime
-
-        db = firestore.client()
-        fuel_ref = db.collection('metadata').document('fuel')
-        fuel_doc = fuel_ref.get()
-
-        if fuel_doc.exists:
-            data = fuel_doc.to_dict()
-            last_sync = data.get('last_sync')
-            if last_sync:
-                # Firestore timestamps are datetime objects
-                age = (datetime.datetime.now(datetime.timezone.utc) - last_sync).days
-                if age < 7: # Weekly Cache logic
-                    print(f"BudiProtocol: Using Weekly Cached Price (Age: {age} days)")
-                    return data.get('rates', {"ron95": 2.05, "ron97": 3.47, "diesel": 3.35, "ron95_skps": 2.05})
-
-        print("BudiProtocol: Cache Expired. Syncing with DataGovMy Registry...")
-        
-        # 1. Official parquet URL from data.gov.my
         parquet_url = "https://storage.data.gov.my/commodities/fuelprice.parquet"
-        
-        # 2. Tool call to parse parquet
         result_text = await self._call_tool("parse_parquet_file", {"url": parquet_url})
         
         latest_rates = {"ron95": 2.05, "ron97": 3.47, "diesel": 3.35, "ron95_skps": 2.05}
         try:
-            # The tool returns a JSON string or raw text parse.
             data_list = json.loads(result_text)
             if isinstance(data_list, list) and len(data_list) > 0:
                 latest = data_list[-1]
@@ -100,12 +106,8 @@ class DataGovMySkill:
                     "diesel": float(latest.get("diesel", 3.35)),
                     "ron95_skps": float(latest.get("ron95_skps", 2.05))
                 }
-                # 3. Update Firestore Cache
-                fuel_ref.set({
-                    'rates': latest_rates,
-                    'last_sync': datetime.datetime.now(datetime.timezone.utc)
-                })
         except Exception as e:
             print(f"Error parsing fuel price data: {e}")
             
         return latest_rates
+

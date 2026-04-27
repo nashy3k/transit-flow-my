@@ -2,30 +2,58 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-# Force Vertex AI Enterprise Routing BEFORE any ADK/GenAI imports 🎬📈 🇲🇾🚆stack
+# --- PRIORITY 1: GLOBAL BOOTSTRAP ---
+# These MUST be set before any other imports to lock the SDK region
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
 os.environ["GOOGLE_CLOUD_PROJECT"] = os.environ.get("GOOGLE_CLOUD_PROJECT", "transit-flow-my")
-os.environ["GOOGLE_CLOUD_LOCATION"] = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+os.environ["GOOGLE_CLOUD_LOCATION"] = "global"
+
+import vertexai
+vertexai.init(project=os.environ["GOOGLE_CLOUD_PROJECT"], location="global")
 
 import asyncio
 from google.adk.agents import Agent
-from google.genai import types
+from google.genai import types, Client
+_dummy_client = Client(vertexai=True, project=os.environ["GOOGLE_CLOUD_PROJECT"], location="global")
 
 from agents.skills.datagovmy_skill import DataGovMySkill
 from agents.eco_calculator import EcoNomicsCalculator
+from app.memory_store import get_user_memory, save_user_memory
+
+from app.vector_service import VectorService
+
+from app.routes_service import RoutesService
 
 # Skill Initializers for tool injection
 skill = DataGovMySkill()
 eco = EcoNomicsCalculator()
+vector_service = VectorService()
+routes_service = RoutesService(vector_service)
 
 # --- ADK TOOLS ---
+async def query_historical_transit_insights(query: str) -> str:
+    """
+    Search historical transit knowledge and past flood event data using Vector RAG.
+    Use this to provide context on whether a route has historical risks or known bottlenecks.
+    """
+    try:
+        results = await vector_service.search_transit_knowledge(query, limit=3)
+        if not results:
+            return "No historical records found for this specific query."
+        
+        insights = []
+        for r in results:
+            insights.append(f"- {r['content']} (Context: {r['metadata']})")
+        return "--- HISTORICAL INSIGHTS (SPATIAL RAG) ---\n" + "\n".join(insights)
+    except Exception as e:
+        return f"Historical insights unavailable: {str(e)}"
+
 # We wrap our skill methods as standalone ADK-compatible tools 🎬📈 🇲🇾🚆stack
 async def check_malaysian_safety_alerts(location: str = "") -> str:
     """Check live meteorological/safety alerts. Specify location (e.g. 'Selangor') for local narrow alerts to filter noise."""
     try:
-        # Defaulting to broad search if not specified, 5s safety timeout
-        # If location is provided, the skill focuses on that state's context
-        alerts = await asyncio.wait_for(skill.check_safety(location), timeout=5.0)
+        # Defaulting to broad search if not specified, 10s safety timeout for G3 Intel 🎬📈 🇲🇾🚆stack
+        alerts = await asyncio.wait_for(skill.check_safety(location), timeout=10.0)
         
         # Logic to "Target" relevant local data if the user provided a location
         if location:
@@ -34,39 +62,49 @@ async def check_malaysian_safety_alerts(location: str = "") -> str:
     except Exception:
         return "NOTICE: Live meteorological API is currently slow. Using cached 2026 Malaysian regional risk profile."
 
-# --- GEOSPATIAL MAPPING TOOLS ---
-def calculate_virtual_route(lat1: float, lng1: float, lat2: float, lng2: float) -> str:
+# --- GEOSPATIAL MAPPING TOOLS (PHASE 4: LIVE) ---
+async def calculate_live_route(lat1: float, lng1: float, destination_name: str) -> str:
     """
-    Estimates road distance using a 'Virtual Route' fallback. 
-    Formula: Geodesic distance * 1.3x road winding multiplier.
-    Returns a detailed estimation summary.
+    Calculates the EXACT road distance and travel time using Google Routes API.
+    You MUST provide the user's lat/lng (lat1/lng1) and the destination name.
     """
-    geodesic_km = eco.calculate_distance(lat1, lng1, lat2, lng2)
-    road_est_km = geodesic_km * 1.3 # 1.3x factor for typical Malaysian road winding (PLUS/Federal roads)
+    # 1. Geocode Destination
+    loc = await routes_service.geocode(destination_name)
+    if not loc:
+         return f"ERROR: Google Geocoder could not find '{destination_name}'. Please specify a more precise landmark in Malaysia."
     
+    lat2, lng2 = loc["lat"], loc["lng"]
+    
+    # 2. Get Live Route
+    route = await routes_service.get_route(lat1, lng1, lat2, lng2)
+    if "error" in route:
+        return f"ERROR: Routes API failed. {route['error']}"
+    
+    dist_km = route["distance_km"]
+    dur_min = route["duration_seconds"] // 60
+    delay_min = route.get("traffic_delay_minutes", 0)
+    polyline = route.get("polyline", "")
+    
+    # Phase 2 Memory: Persist the destination for origin pivoting
+    save_user_memory("hackathon_tester", {"last_destination": destination_name})
+    
+    status_msg = "All clear" if delay_min < 5 else (f"Heavy Traffic (+{delay_min} min)" if delay_min > 15 else f"Moderate Traffic (+{delay_min} min)")
+
     return (
-        f"📍 **Virtual Route Estimation Engine** (Google Routes API 401 Bypass Active)\n"
-        f"- Straight-line (Geodesic): {geodesic_km:.2f} km\n"
-        f"- **Estimated Road Distance (1.3x Multiplier)**: {road_est_km:.2f} km\n"
-        f"Note: This is a high-fidelity estimation based on internal geospatial knowledge."
+        f"🚦 **Google Live Routing Engine** (Phase 4 Active)\n"
+        f"- **Calculated Road Distance**: {dist_km:.2f} km\n"
+        f"- **Estimated Drive Time**: {dur_min} minutes ({status_msg})\n"
+        f"- **Destination Verified**: {destination_name} ({lat2:.4f}, {lng2:.4f})\n"
+        f"--- TOOL_METADATA: {{\"polyline\": \"{polyline}\", \"traffic_delay\": {delay_min}}} ---\n"
+        f"Note: This distance is used for all EcoNomics and Sustainability calculations."
     )
 
-def geocode_location(location_name: str) -> str:
-    """Gets the latitude and longitude for a known Malaysian location. Use this to find coordinates for the destination."""
-    locs = {
-        "kl sentral": {"lat": 3.1340, "lng": 101.6861},
-        "klcc": {"lat": 3.1579, "lng": 101.7123},
-        "subang jaya": {"lat": 3.0797, "lng": 101.5900},
-        "shah alam": {"lat": 3.0790, "lng": 101.5300},
-        "petaling jaya": {"lat": 3.1073, "lng": 101.6067},
-        "bangsar": {"lat": 3.1293, "lng": 101.6738},
-        "ttdi": {"lat": 3.1415, "lng": 101.6288}
-    }
-    loc = location_name.lower().strip()
-    for key, coords in locs.items():
-        if key in loc:
-            return f"{location_name}: Lat {coords['lat']} Lng {coords['lng']}."
-    return f"Could not find exact coordinates for {location_name}. Assume it is 15km away from the origin."
+async def geocode_location(location_name: str) -> str:
+    """Live Google Geocoder: Resolves any Malaysian landmark to GPS coordinates."""
+    loc = await routes_service.geocode(location_name)
+    if loc:
+        return f"{location_name}: Lat {loc['lat']} Lng {loc['lng']}."
+    return f"Geocoding failed for {location_name}."
 
 async def reverse_geocode_location(lat: float, lng: float) -> str:
     """Resolve GPS coordinates to a Malaysian neighborhood/town name."""
@@ -106,8 +144,7 @@ async def find_nearby_transit(location_name: str = "Shah Alam", lat: float = Non
 
     # If we have coordinates, find the true closest station
     if lat and lng:
-        closest_station = None
-        min_dist = float('inf')
+        stations_with_dist = []
         
         for station in registry.get("stations", []):
             # Haversine Formula for high-fidelity spatial awareness
@@ -117,39 +154,46 @@ async def find_nearby_transit(location_name: str = "Shah Alam", lat: float = Non
             a = math.sin(dlat/2)**2 + math.cos(math.radians(lat)) * math.cos(math.radians(station['lat'])) * math.sin(dlng/2)**2
             c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
             dist = R * c
-            
-            if dist < min_dist:
-                min_dist = dist
-                closest_station = station
+            stations_with_dist.append({
+                'name': station['name'],
+                'line': station['line'],
+                'distance': round(dist, 2)
+            })
+        # Sort and take Top 3
+        stations_with_dist.sort(key=lambda x: x['distance'])
+        top_stations = stations_with_dist[:3]
         
-        if closest_station:
+        if top_stations:
+            summary = ", ".join([f"**{s['name']}** ({s['distance']} km)" for s in top_stations])
             return (
-                f"SUCCESS: The closest station is **{closest_station['name']}** ({closest_station['line']}). "
-                f"Coordinates: [{closest_station['lat']}, {closest_station['lng']}]. "
-                f"Distance: {min_dist:.2f} km. "
-                "Recommendation: Use a feeder bus or Grab to reach this hub for the most economical journey."
+                f"SUCCESS: Found {len(top_stations)} nodes nearby: {summary}. "
+                f"[STATIONS_DATA]: {json.dumps(top_stations)}"
             )
 
     # Fallback to name-based logic if no coords
     if "shah alam" in location_name.lower():
-        return "NOTICE: Closest active hub is **LRT Glenmarie** (~8.6 km). Use Kelana Jaya Line to KL Sentral."
+        return "NOTICE: Closest active hub is **LRT Glenmarie** (~8.6 km). [STATIONS_DATA]: [{\"name\": \"LRT Glenmarie\", \"line\": \"Kelana Jaya\", \"distance\": 8.6}]"
         
-    return "NOTICE: Checking general RapidKL schedules for your area."
+    return "NOTICE: Checking general RapidKL schedules for your area. [STATIONS_DATA]: []"
 
 async def route_to_nearest_transit(lat: float, lng: float) -> str:
     """Finds the closest rail hub and immediately calculates the journey economics to it. Use this for 'Go to nearest station' requests."""
     # Step 1: Find station
     station_info = await find_nearby_transit(lat=lat, lng=lng)
     
-    # Extract distance from string if possible (e.g. 6.11 km)
+    # Extract distance and name
     try:
-        # Simplistic extraction for POC; in prod we'd return a dict from find_nearby_transit
         dist_km = float(station_info.split("Distance: ")[1].split(" km")[0])
+        station_name = station_info.split("**")[1]
     except:
-        dist_km = 5.0 # Safe default for local urban hub
+        dist_km = 5.0
+        station_name = "Nearest LRT Station"
         
     # Step 2: Calculate Economics
     eco_summary = calculate_economics_impact(distance_km=dist_km)
+    
+    # Phase 2 Memory: Persist the destination for origin pivoting
+    save_user_memory("hackathon_tester", {"last_destination": station_name})
     
     return f"{station_info}\n\n[ECONOMICS ANALYSIS]\n{eco_summary}"
 
@@ -171,25 +215,24 @@ def calculate_economics_impact(distance_km: float = 15.5) -> str:
 # This is the 'Orchestration Layer' required by the project
 transit_agent = Agent(
     name="TransitFlowSupervisor",
-    model="gemini-2.5-flash-lite", # Pinning to the proven Vertex baseline
+    # FIX: Using short-name 3.1 Lite. Path will be auto-constructed via global init 🎬📈 🇲🇾🚆stack
+    model="gemini-3.1-flash-lite-preview",
     instruction=(
-        "1. NO CLARIFICATION: NEVER ask for location. Use [SYSTEM] context. "
-        "2. INTENT RESOLUTION: "
-        "   - 'WHERE AM I?': Provide neighborhood info + 'Location Insight' card. "
-        "   - 'GO TO NEAREST STATION': Use 'route_to_nearest_transit(LAT, LNG)'. "
-        "   - SPECIFIC DESTINATION: Use 'calculate_virtual_route'. "
-        "3. EXECUTIVE SUMMARY: "
-        "   - **MANDATORY**: Start every journey response with a bold '🌍 Safety & Weather Recap' line. "
-        "   - Provide a clean bulleted 'Executive Summary' comparing the 4 modes (Car, Motorbike, Grab, Transit). "
-        "   - Format: * **Mode Name**: RM Subsidized (vs. RM Market) | CO2 Footprint. "
-        "   - Add a 'Pro Recommendation' sentence (e.g. 'Transit is your optimal choice'). "
-        "4. DATA ENVELOPE: ALWAYS end your response with '<<<DATA>>>' followed by a JSON object. "
-        '   Format: { "title": "Scenario Navigation", "metrics": [{ "type": "Car", "cost": n, "co2": n, "savings": n }, ...] } '
-        "   - Mandatory types: 'Car', 'Motorbike', 'Grab', 'Transit'. ALWAYS include all 4."
+        "SYSTEM ROLE: You are the TransitFlow Executive Orchestrator. Provide high-fidelity, 'WOW' travel intelligence. "
+        "REPORT STRUCTURE: "
+        "1. EXECUTIVE SUMMARY: Start with '### Journey: [Origin] to [Destination] ([Distance] km)'. "
+        "2. IMPACT TABLE: A clean comparison of [Car, Moto, Grab, Transit] including CO2 and Budi95 Savings. "
+        "3. ENVIRONMENTAL INTELLIGENCE: Deep dive into the carbon footprint comparison. "
+        "4. SUSTAINABILITY ANALYSIS & CTA: Provide a persuasive Call-to-Action for transit and sustainability tips. "
+        "5. HIDDEN DATA: End with '<<<DATA>>>' followed by a JSON object. "
+        "CRITICAL: The 'polyline' MUST ONLY exist in the JSON. NEVER show raw polyline text in the markdown report. "
+        "JSON STRUCTURE: {\"title\": \"...\", \"metrics\": [{\"co2\": f, \"cost\": f} x4], \"stations\": [{\"name\": \"...\", \"line\": \"...\", \"distance\": f}], \"safety\": \"...\", \"traffic\": \"...\", \"polyline\": \"...\"}. "
+        "RELIABILITY: Call 'calculate_live_route' for the map. If tools timeout, use internal knowledge to provide high-fidelity ESTIMATES. No reasoning in output."
     ),
     tools=[
+        query_historical_transit_insights,
         check_malaysian_safety_alerts,
-        calculate_virtual_route,
+        calculate_live_route,
         route_to_nearest_transit,
         search_transit_data,
         find_nearby_transit,
@@ -227,35 +270,43 @@ async def process_query_adk(query: str, user_location: dict = None, user_id: str
         user_location (dict, optional): GPS context {'lat': float, 'lng': float}.
         user_id (str): Unique identifier for session persistence.
     """
+    # Step 3: Fetch Stateful Memories (Phase 2)
+    memories = get_user_memory("hackathon_tester") # Using fixed test ID for now
+    last_dest = memories.get("last_destination", "None")
+    
     # Final Production Context Sync 🎬📈 🇲🇾🚆stack
-    # If no GPS, we fallback to KLCC for a better 'first-time' experience 🇲🇾
-    lat = user_location.get('lat') if user_location else 3.1579
-    lng = user_location.get('lng') if user_location else 101.7123
-    is_virtual = "VIRTUAL (GPS Denied)" if not user_location else "LIVE (GPS Active)"
+    lat, lng = (None, None)
+    
+    # Pivot Logic: Detect if user wants to continue from last destination
+    pivot_keywords = ["from here", "from there", "then", "after that", "next to"]
+    wants_pivot = any(k in query.lower() for k in pivot_keywords)
+    
+    if wants_pivot and last_dest != "None":
+        loc = await routes_service.geocode(last_dest)
+        if loc:
+            lat, lng = loc["lat"], loc["lng"]
+            print(f"--- ADK: Pivoting Origin to {last_dest} ({lat}, {lng}) ---")
+    
+    if lat is None and user_location:
+        lat, lng = user_location.get('lat'), user_location.get('lng')
+    
+    # Final Fallback to KLCC
+    lat = lat if lat is not None else 3.1579
+    lng = lng if lng is not None else 101.7123
+    
+    is_virtual = "PIVOT (Memory)" if wants_pivot and last_dest != "None" else ("LIVE" if user_location else "DEFAULT")
 
     # Step 1: Detect Current Neighborhood (Spatial Resolution)
-    current_neighborhood = await reverse_geocode_location(lat, lng)
+    current_neighborhood = last_dest if wants_pivot and last_dest != "None" else await reverse_geocode_location(lat, lng)
     
-    # Step 1: Destination Coordinate Pre-Resolution (Hallucination Guard)
-    dest_coords = {
-        "kl sentral": "3.1340, 101.6861",
-        "klcc": "3.1579, 101.7123",
-        "subang jaya": "3.0797, 101.5900",
-        "shah alam": "3.0790, 101.5300",
-        "pj": "3.1073, 101.6067",
-        "petaling jaya": "3.1073, 101.6067"
-    }
-    
-    dest_hint = "No coordinates found. Please ask user for clarification."
-    for loc, coords in dest_coords.items():
-        if loc in query.lower():
-            dest_hint = f"{loc.upper()} Coordinates (Lat, Lng): {coords}"
-            break
-
+    # Step 2: Formulate Orchestration Prompt
     context_query = (
-        f"[SYSTEM: User Current Location: {current_neighborhood} (Lat: {lat:.4f}, Lng: {lng:.4f})]\n"
-        f"[COORDINATES: {dest_hint}]\n\n"
-        f"Query: {query}"
+        f"USER REQUEST: {query}\n"
+        f"CURRENT CONTEXT: {is_virtual} Mode\n"
+        f"USER ORIGIN: {current_neighborhood} (Lat: {lat:.4f}, Lng: {lng:.4f})\n"
+        f"LAST DESTINATION (MEMORY): {last_dest}\n\n"
+        "INSTRUCTION: You must provide a high-fidelity travel impact report. "
+        "Use the available tools to find the EXACT road distance and nearby transit stations."
     )
     
     # Step 3: Ensure session existence before execution
@@ -297,10 +348,9 @@ async def process_query_adk(query: str, user_location: dict = None, user_id: str
         except Exception as e:
             err_str = str(e)
             if ("429" in err_str or "RESOURCE_EXHAUSTED" in err_str) and attempt < max_retries - 1:
-                import random
-                # Aggressive 5s base backoff for us-central1 congestion
-                wait_time = (5 * (attempt + 1)) + random.uniform(0, 1)
-                print(f"--- ADK: 429 Rate Limit hit in us-central1. Retrying in {wait_time:.2f}s... (Attempt {attempt+1}/{max_retries}) ---")
+                # Reduced backoff for better responsiveness 🎬📈 🇲🇾🚆stack
+                wait_time = (2 * (attempt + 1)) + random.uniform(0, 1)
+                print(f"--- ADK: 429 Rate Limit hit. Retrying in {wait_time:.2f}s... (Attempt {attempt+1}/{max_retries}) ---")
                 await asyncio.sleep(wait_time)
                 continue
             print(f"ADK Execution Error: {repr(e)}")

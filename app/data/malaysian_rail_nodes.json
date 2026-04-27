@@ -7,6 +7,18 @@
             "line": "Kelana Jaya Line"
         },
         {
+            "name": "LRT KELANA JAYA",
+            "lat": 3.1130,
+            "lng": 101.6050,
+            "line": "Kelana Jaya Line"
+        },
+        {
+            "name": "MRT MUZIUM NEGARA",
+            "lat": 3.1360,
+            "lng": 101.6850,
+            "line": "Kajang Line"
+        },
+        {
             "name": "KL SENTRAL",
             "lat": 3.1340,
             "lng": 101.6861,
@@ -34,6 +46,18 @@
             "name": "MRT BANDAR UTAMA",
             "lat": 3.1465,
             "lng": 101.6186,
+            "line": "Kajang Line"
+        },
+        {
+            "name": "MRT MERDEKA",
+            "lat": 3.1430,
+            "lng": 101.7015,
+            "line": "Kajang Line"
+        },
+        {
+            "name": "MRT BUKIT BINTANG",
+            "lat": 3.1470,
+            "lng": 101.7120,
             "line": "Kajang Line"
         },
         {

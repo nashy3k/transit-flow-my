@@ -12,9 +12,18 @@ wheels/
 # Environment variables
 .env
 
-# Test scripts and massive diagnostic logs
+# Virtual environments
+.venv/
+__pycache__/
+
+# Massive diagnostic logs & Agentic data
 tests/
-.env
-*.txt
-# media/ (Removed uv.lock from ignore)
+.agent/
+.brain/
+artifacts/
 media/
+*.txt
+*.log
+
+# Workspace Shields (Secrets)
+.vscode/mcp.json

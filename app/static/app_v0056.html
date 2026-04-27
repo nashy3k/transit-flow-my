@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TransitFlow | Midnight Flux Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;500;700;800&family=Inter:wght@400;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --surface-dim: #111318;
+            --surface-container-low: #1a1c20;
+            --surface-container-high: #282a2e;
+            --surface-container-highest: #333539;
+            --primary-gradient: linear-gradient(135deg, #a4e6ff 0%, #00d1ff 100%);
+            --secondary-teal: #44ddc1;
+            --tertiary-amber: #ffd5a9;
+            --glass-blur: 32px;
+            --radius: 1.5rem; /* 24px */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--surface-dim);
+            color: #e2e2e8;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(190, 100%, 10%, 0.4) 0, transparent 50%),
+                radial-gradient(at 100% 100%, hsla(240, 100%, 8%, 0.4) 0, transparent 50%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, .headline {
+            font-family: 'Manrope', sans-serif;
+        }
+
+        .glass-panel {
+            background: rgba(26, 28, 32, 0.6);
+            backdrop-filter: blur(var(--glass-blur));
+            border-radius: var(--radius);
+            /* Tonal separation instead of borders per design system rule */
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+        }
+
+        .glass-card {
+            background: var(--surface-container-high);
+            border-radius: var(--radius);
+            transition: all 0.3s ease;
+        }
+
+        .glass-card:hover {
+            background: var(--surface-container-highest);
+            transform: translateY(-2px);
+        }
+
+        /* Floating Bottom Nav */
+        .floating-nav {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            background: rgba(17, 19, 24, 0.85);
+            backdrop-filter: blur(20px);
+            border-radius: 3rem;
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .nav-item {
+            color: #859399;
+            transition: color 0.2s ease;
+            cursor: pointer;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            color: #a4e6ff;
+        }
+
+        .nav-fab {
+            width: 3.5rem;
+            height: 3.5rem;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #003543;
+            box-shadow: 0 8px 20px rgba(0, 209, 255, 0.3);
+            margin-top: -1.5rem;
+            transition: transform 0.2s ease;
+        }
+
+        .nav-fab:hover {
+            transform: scale(1.05);
+        }
+
+        /* EcoNomics Insights Chart Logic */
+        .chart-container {
+            display: flex;
+            gap: 2rem;
+            padding: 1rem 0;
+        }
+
+        .chart-group {
+            flex: 1;
+        }
+
+        .bar-stack {
+            display: flex;
+            align-items: flex-end;
+            gap: 0.5rem;
+            height: 120px;
+            margin-bottom: 0.5rem;
+        }
+
+        .v-bar {
+            flex: 1;
+            border-radius: 4px 4px 0 0;
+            transition: height 1s cubic-bezier(0.17, 0.67, 0.83, 0.67);
+            height: 0;
+        }
+
+        .v-bar-teal {
+            background: linear-gradient(180deg, var(--secondary-teal) 0%, #1a4a42 100%);
+            box-shadow: 0 0 15px rgba(68, 221, 193, 0.2);
+        }
+
+        .v-bar-amber {
+            background: linear-gradient(180deg, var(--tertiary-amber) 0%, #4a3d1a 100%);
+            box-shadow: 0 0 15px rgba(255, 213, 169, 0.2);
+        }
+
+        .chart-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #859399;
+            text-align: center;
+        }
+
+        .percentage-badge {
+            font-size: 10px;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(68, 221, 193, 0.1);
+            color: var(--secondary-teal);
+            margin-bottom: 4px;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+</head>
+
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto flex flex-col gap-8 pb-32">
+        <!-- Header -->
+        <header class="flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-xl bg-[#00d1ff] flex items-center justify-center">
+                    <i data-lucide="train" class="text-[#001f28] w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Transit<span class="text-[#a4e6ff]">Flow</span></h1>
+                    <span class="text-[10px] uppercase tracking-widest text-[#859399] font-semibold">Refinement Phase</span>
+                </div>
+            </div>
+            <div id="auth-section">
+                 <button id="login-btn" class="text-xs font-bold uppercase tracking-widest text-[#a4e6ff] px-4 py-2 rounded-full border border-[#3c494e] hover:bg-[#a4e6ff]/5 transition-all">Connect Identity</button>
+                 <div id="user-info" class="hidden items-center gap-3">
+                    <img id="user-photo" src="" class="w-8 h-8 rounded-full border border-white/10" />
+                    <button id="logout-btn" class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Sign Out</button>
+                 </div>
+            </div>
+        </header>
+
+        <!-- Main Title -->
+        <section>
+            <h2 class="text-6xl font-extrabold tracking-tighter headline">TRIPS</h2>
+        </section>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Left Pane: Interaction & Safety -->
+            <div class="lg:col-span-7 flex flex-col gap-6">
+                <!-- Chat Window -->
+                <div class="glass-panel h-[450px] flex flex-col overflow-hidden">
+                    <div id="chat-messages" class="flex-1 p-6 space-y-6 overflow-y-auto hide-scrollbar">
+                        <div class="flex gap-4 items-start max-w-lg">
+                            <div class="w-8 h-8 rounded-lg bg-[#a4e6ff]/10 flex items-center justify-center flex-shrink-0">
+                                <i data-lucide="shield-check" class="w-4 h-4 text-[#a4e6ff]"></i>
+                            </div>
+                            <div class="text-sm p-4 rounded-2xl rounded-tl-none bg-white/5 border border-white/5 leading-relaxed">
+                                Welcome back to the TransitFlow Command Center. We are currently in the Refinement Round. How can I assist with your journey today?
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="p-6 bg-[#1a1c20]/40 backdrop-blur-xl border-t border-white/5">
+                        <div class="relative">
+                            <input id="user-input" type="text" placeholder="Where to? (e.g. Plan a safe route to Bandar Utama)" 
+                                   class="w-full bg-white/5 border-none rounded-2xl py-4 px-6 focus:ring-2 focus:ring-[#00d1ff]/50 text-sm placeholder-[#3c494e]" />
+                            <button id="send-btn" class="absolute right-2 top-2 p-3 bg-[#a4e6ff] text-[#003543] rounded-xl hover:bg-[#00d1ff] transition-all">
+                                <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Warnings -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="glass-card p-6 flex items-start gap-4 border-l-4 border-[#ffd5a9]">
+                        <div class="p-3 bg-[#ffd5a9]/10 rounded-xl text-[#ffd5a9]">
+                            <i data-lucide="cloud-lightning" class="w-6 h-6"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs font-bold uppercase tracking-widest text-white">Safety Alert</span>
+                                <i data-lucide="chevron-right" class="w-4 h-4 text-[#859399]"></i>
+                            </div>
+                            <p class="text-xs text-[#859399] leading-relaxed" id="weather-banner">
+                                Severe weather warning: Expect heavy thunderstorms in the Klang Valley area.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="glass-card p-6 flex items-start gap-4 border-l-4 border-red-400">
+                        <div class="p-3 bg-red-400/10 rounded-xl text-red-400">
+                            <i data-lucide="alert-circle" class="w-6 h-6"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs font-bold uppercase tracking-widest text-white">Critical Alert</span>
+                                <i data-lucide="chevron-right" class="w-4 h-4 text-[#859399]"></i>
+                            </div>
+                            <p class="text-xs text-[#859399] leading-relaxed">
+                                Flash flood detected in Section 13. High-risk zones active.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Pane: EcoNomics Insights -->
+            <div class="lg:col-span-5 flex flex-col gap-6">
+                <div id="visual-insights" class="glass-panel p-8 flex flex-col h-full hidden">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-bold uppercase tracking-[0.2em] text-[#a4e6ff]">EcoNomics Insights</h3>
+                        <div id="scenario-nav" class="flex items-center gap-2 text-[#859399]">
+                            <button onclick="prevScenario()"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                            <span id="scenario-index" class="text-[10px] font-bold mono">1/1</span>
+                            <button onclick="nextScenario()"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-[#859399] mb-8" id="scenario-title">Savings and cost analysis by CO2.</p>
+
+                    <div id="insights-container" class="space-y-12">
+                        <!-- Dynamic Charts Loaded Here -->
+                    </div>
+                </div>
+
+                <!-- Empty State for Insights -->
+                <div id="insights-empty" class="glass-panel p-12 flex flex-col items-center justify-center text-center opacity-50">
+                    <i data-lucide="pie-chart" class="w-12 h-12 text-[#3c494e] mb-4"></i>
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#3c494e]">No Journey Data</p>
+                    <p class="text-[10px] text-slate-600 max-w-[200px] mt-2">Plan a route to visualize economic and environmental savings.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Navigation -->
+    <nav class="floating-nav">
+        <div class="nav-item active"><i data-lucide="home" class="w-5 h-5"></i></div>
+        <div class="nav-item"><i data-lucide="bus" class="w-5 h-5"></i></div>
+        <div class="nav-fab"><i data-lucide="chevron-right" class="w-6 h-6"></i></div>
+        <div class="nav-item"><i data-lucide="history" class="w-5 h-5"></i></div>
+        <div class="nav-item"><i data-lucide="settings" class="w-5 h-5"></i></div>
+    </nav>
+
+    <div id="gps-status" class="fixed top-8 right-8 text-[10px] font-bold mono text-[#3c494e]">
+        GPS: <span id="gps-label" class="text-amber-500">PENDING</span>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+
+        lucide.createIcons();
+
+        let app, auth, provider;
+        let currentUser = null;
+        let userLocation = null;
+        let journeyHistory = [];
+        let currentScenarioIndex = -1;
+
+        async function initFirebase() {
+            try {
+                const response = await fetch('/config');
+                const data = await response.json();
+                app = initializeApp(data.firebaseConfig);
+                auth = getAuth(app);
+                provider = new GoogleAuthProvider();
+                provider.setCustomParameters({ prompt: 'select_account' });
+
+                setupAuth();
+                fetchStats();
+            } catch (err) {
+                console.error("Firebase Initialization Failed:", err);
+            }
+        }
+
+        function setupAuth() {
+            onAuthStateChanged(auth, user => {
+                const loginBtn = document.getElementById('login-btn');
+                const userInfo = document.getElementById('user-info');
+                if (user) {
+                    currentUser = user;
+                    loginBtn.classList.add('hidden');
+                    userInfo.classList.remove('hidden');
+                    userInfo.classList.add('flex');
+                    document.getElementById('user-photo').src = user.photoURL;
+                } else {
+                    currentUser = null;
+                    loginBtn.classList.remove('hidden');
+                    userInfo.classList.add('hidden');
+                }
+            });
+            document.getElementById('login-btn').onclick = () => signInWithPopup(auth, provider);
+            document.getElementById('logout-btn').onclick = () => signOut(auth);
+        }
+
+        // GPS Logic
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition((pos) => {
+                userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                const lbl = document.getElementById('gps-label');
+                lbl.innerText = `LOCKED (${userLocation.lat.toFixed(2)}, ${userLocation.lng.toFixed(2)})`;
+                lbl.classList.remove('text-amber-500');
+                lbl.classList.add('text-green-400');
+            }, null, { enableHighAccuracy: true });
+        }
+
+        async function sendMessage(text) {
+            if (!text || !currentUser) return;
+            addMessage(text, 'user');
+            document.getElementById('user-input').value = '';
+
+            try {
+                const idToken = await currentUser.getIdToken();
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                    body: JSON.stringify({ message: text, location: userLocation })
+                });
+                const data = await response.json();
+                addMessage(data.response, 'ai');
+                if (data.visual_data) renderInsights(data.visual_data);
+            } catch (err) {
+                addMessage(`Identity Alert: ${err.message}`, 'ai');
+            }
+        }
+
+        function addMessage(text, side) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = side === 'user' ? 'flex gap-4 items-start max-w-lg ml-auto flex-row-reverse' : 'flex gap-4 items-start max-w-lg';
+            div.innerHTML = `
+                <div class="w-8 h-8 rounded-lg ${side === 'user' ? 'bg-slate-700/20' : 'bg-[#a4e6ff]/20'} flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="${side === 'user' ? 'user' : 'shield-check'}" class="w-4 h-4 text-[#a4e6ff]"></i>
+                </div>
+                <div class="text-sm p-4 rounded-2xl ${side === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'} bg-white/5 border border-white/5 leading-relaxed">
+                    ${text}
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            lucide.createIcons();
+        }
+
+        function renderInsights(data) {
+            let scenario = Array.isArray(data) ? { title: "Refined Route", metrics: data } : data;
+            journeyHistory.push(scenario);
+            if (journeyHistory.length > 5) journeyHistory.shift();
+            currentScenarioIndex = journeyHistory.length - 1;
+            updateInsightsView();
+        }
+
+        function updateInsightsView() {
+            const container = document.getElementById('insights-container');
+            const empty = document.getElementById('insights-empty');
+            const pane = document.getElementById('visual-insights');
+            const scenario = journeyHistory[currentScenarioIndex];
+
+            if (!scenario) return;
+
+            empty.classList.add('hidden');
+            pane.classList.remove('hidden');
+            container.innerHTML = '';
+            
+            document.getElementById('scenario-index').innerText = `${currentScenarioIndex + 1}/${journeyHistory.length}`;
+            document.getElementById('scenario-title').innerText = scenario.title;
+
+            // Group metrics into one chart container (Simplified for now)
+            const chartArea = document.createElement('div');
+            chartArea.className = 'chart-container';
+
+            // Split into CO2 (Teal) and Savings (Amber) groups
+            const co2Group = document.createElement('div');
+            co2Group.className = 'chart-group';
+            co2Group.innerHTML = `<div class="percentage-badge">238% Carbon Savings</div><div class="bar-stack" id="co2-stack"></div><div class="chart-label">CO2 Saved</div>`;
+
+            const costGroup = document.createElement('div');
+            costGroup.className = 'chart-group';
+            costGroup.innerHTML = `<div class="percentage-badge" style="background: rgba(255,213,169,0.1); color: #ffd5a9;">RM ${scenario.metrics[0].savings || 0} Savings</div><div class="bar-stack" id="cost-stack"></div><div class="chart-label">Cost Savings</div>`;
+
+            chartArea.appendChild(co2Group);
+            chartArea.appendChild(costGroup);
+            container.appendChild(chartArea);
+
+            scenario.metrics.forEach((item, idx) => {
+                const co2Bar = document.createElement('div');
+                co2Bar.className = 'v-bar v-bar-teal';
+                const co2H = Math.min((item.co2 || 1) * 20, 100);
+                
+                const costBar = document.createElement('div');
+                costBar.className = 'v-bar v-bar-amber';
+                const costH = Math.min((item.cost || 1) * 10, 100);
+
+                document.getElementById('co2-stack').appendChild(co2Bar);
+                document.getElementById('cost-stack').appendChild(costBar);
+
+                setTimeout(() => {
+                    co2Bar.style.height = `${co2H}%`;
+                    costBar.style.height = `${costH}%`;
+                }, 100 * idx);
+            });
+            lucide.createIcons();
+        }
+
+        window.prevScenario = () => { if (currentScenarioIndex > 0) { currentScenarioIndex--; updateInsightsView(); } };
+        window.nextScenario = () => { if (currentScenarioIndex < journeyHistory.length - 1) { currentScenarioIndex++; updateInsightsView(); } };
+
+        document.getElementById('send-btn').onclick = () => sendMessage(document.getElementById('user-input').value);
+        document.getElementById('user-input').onkeydown = (e) => { if (e.key === 'Enter') sendMessage(e.target.value); };
+
+        async function fetchStats() {
+            try {
+                const res = await fetch('/stats');
+                const data = await res.json();
+                document.getElementById('weather-banner').innerText = data.flood > 0 ? `Alert: ${data.flood} active flood warnings detected in your region.` : "Status: No immediate severe weather threats in your current radius.";
+            } catch (err) {}
+        }
+
+        initFirebase();
+    </script>
+</body>
+</html>
