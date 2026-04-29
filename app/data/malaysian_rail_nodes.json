@@ -1,70 +1,186 @@
 {
     "stations": [
         {
-            "name": "LRT GLENMARIE",
-            "lat": 3.0950,
-            "lng": 101.5900,
-            "line": "Kelana Jaya Line"
+            "name": "[KTM] SHAH ALAM",
+            "lat": 3.0563,
+            "lng": 101.5253,
+            "line": "Port Klang Line",
+            "landmark": "Shah Alam Section 19, Stadium Karun"
         },
         {
-            "name": "LRT KELANA JAYA",
-            "lat": 3.1130,
-            "lng": 101.6050,
-            "line": "Kelana Jaya Line"
+            "name": "[KTM] BATU TIGA",
+            "lat": 3.0590,
+            "lng": 101.5560,
+            "line": "Port Klang Line",
+            "landmark": "Batu Tiga Industrial Park"
         },
         {
-            "name": "MRT MUZIUM NEGARA",
-            "lat": 3.1360,
-            "lng": 101.6850,
-            "line": "Kajang Line"
+            "name": "[KTM] PADANG JAWA",
+            "lat": 3.0485,
+            "lng": 101.4905,
+            "line": "Port Klang Line",
+            "landmark": "UiTM Shah Alam"
         },
         {
-            "name": "KL SENTRAL",
-            "lat": 3.1340,
-            "lng": 101.6861,
-            "line": "Interchange (LRT/MRT/ETS)"
-        },
-        {
-            "name": "LRT ARA DAMANSARA",
-            "lat": 3.1141,
-            "lng": 101.5835,
-            "line": "Kelana Jaya Line"
-        },
-        {
-            "name": "LRT SUBANG JAYA",
+            "name": "[KTM] SUBANG JAYA",
             "lat": 3.0805,
             "lng": 101.5866,
-            "line": "Kelana Jaya Line"
+            "line": "Port Klang Line / Skypark Link",
+            "landmark": "Subang Parade, Empire Subang"
         },
         {
-            "name": "MRT PASAR SENI",
-            "lat": 3.1423,
-            "lng": 101.6967,
-            "line": "Kajang Line"
+            "name": "[LRT] GLENMARIE",
+            "lat": 3.0950,
+            "lng": 101.5900,
+            "line": "Kelana Jaya Line",
+            "landmark": "Plaza Glenmarie, Hicom Glenmarie"
         },
         {
-            "name": "MRT BANDAR UTAMA",
-            "lat": 3.1465,
-            "lng": 101.6186,
-            "line": "Kajang Line"
+            "name": "[LRT] ARA DAMANSARA",
+            "lat": 3.1141,
+            "lng": 101.5835,
+            "line": "Kelana Jaya Line",
+            "landmark": "Evolve Concept Mall"
         },
         {
-            "name": "MRT MERDEKA",
-            "lat": 3.1430,
-            "lng": 101.7015,
-            "line": "Kajang Line"
+            "name": "[LRT] SUBANG JAYA",
+            "lat": 3.0805,
+            "lng": 101.5866,
+            "line": "Kelana Jaya Line",
+            "landmark": "Subang Jaya Interchange"
         },
         {
-            "name": "MRT BUKIT BINTANG",
+            "name": "[HUB] KL SENTRAL",
+            "lat": 3.1340,
+            "lng": 101.6861,
+            "line": "Interchange (LRT/MRT/ETS)",
+            "landmark": "Nu Sentral, National Museum"
+        },
+        {
+            "name": "[MRT] MUZIUM NEGARA",
+            "lat": 3.1360,
+            "lng": 101.6850,
+            "line": "Kajang Line",
+            "landmark": "National Museum, KL Sentral"
+        },
+        {
+            "name": "[MRT] BUKIT BINTANG",
             "lat": 3.1470,
             "lng": 101.7120,
-            "line": "Kajang Line"
+            "line": "Kajang Line",
+            "landmark": "Pavilion KL, Lot 10"
         },
         {
-            "name": "LRT SS15",
-            "lat": 3.0789,
-            "lng": 101.5861,
-            "line": "Kelana Jaya Line"
+            "name": "[LRT] NATIONAL STADIUM",
+            "lat": 3.0543,
+            "lng": 101.6912,
+            "line": "Sri Petaling Line (Bukit Jalil)",
+            "landmark": "National Stadium Bukit Jalil, Axiata Arena"
+        },
+        {
+            "name": "[LRT] KLCC",
+            "lat": 3.1593,
+            "lng": 101.7118,
+            "line": "Kelana Jaya Line",
+            "landmark": "Petronas Twin Towers, Suria KLCC"
+        },
+        {
+            "name": "[LRT] MASJID JAMEK",
+            "lat": 3.1492,
+            "lng": 101.6961,
+            "line": "Kelana Jaya / Sri Petaling",
+            "landmark": "Merdeka Square, Masjid Jamek"
+        },
+        {
+            "name": "[LRT] BANGSAR",
+            "lat": 3.1274,
+            "lng": 101.6788,
+            "line": "Kelana Jaya Line",
+            "landmark": "Bangsar Village, Menara UOA"
+        },
+        {
+            "name": "[LRT] KELANA JAYA",
+            "lat": 3.1121,
+            "lng": 101.6111,
+            "line": "Kelana Jaya Line",
+            "landmark": "Paradigm Mall, Kelana Jaya Park"
+        },
+        {
+            "name": "[MRT] PASAR SENI",
+            "lat": 3.1425,
+            "lng": 101.6955,
+            "line": "Kajang Line / LRT KJ",
+            "landmark": "Central Market, Chinatown"
+        },
+        {
+            "name": "[LRT] AMPANG PARK",
+            "lat": 3.1596,
+            "lng": 101.7187,
+            "line": "Kelana Jaya Line",
+            "landmark": "Intermark Mall, G-Tower"
+        },
+        {
+            "name": "[MRT] BUKIT BINTANG",
+            "lat": 3.1470,
+            "lng": 101.7120,
+            "line": "Kajang Line / Monorail",
+            "landmark": "Pavilion KL, Lot 10, Starhill"
+        },
+        {
+            "name": "[MRT] SEMANTAN",
+            "lat": 3.1506,
+            "lng": 101.6653,
+            "line": "Kajang Line",
+            "landmark": "Wisma Damansara, HP Towers"
+        },
+        {
+            "name": "[MRT] PUSAT BANDAR DAMANSARA",
+            "lat": 3.1432,
+            "lng": 101.6622,
+            "line": "Kajang Line",
+            "landmark": "Pavilion Damansara Heights"
+        },
+        {
+            "name": "[LRT] WANGSA MAJU",
+            "lat": 3.2058,
+            "lng": 101.7325,
+            "line": "Kelana Jaya Line",
+            "landmark": "Setapak Central, AEON Wangsa Maju"
+        },
+        {
+            "name": "[LRT] GOMBAK",
+            "lat": 3.2311,
+            "lng": 101.7247,
+            "line": "Kelana Jaya Line",
+            "landmark": "Gombak Transport Hub, Genting Sky Avenue bus"
+        },
+        {
+            "name": "[LRT] DANG WANGI",
+            "lat": 3.1567,
+            "lng": 101.7018,
+            "line": "Kelana Jaya Line",
+            "landmark": "KL Tower, Quill City Mall"
+        },
+        {
+            "name": "[LRT] UNIVERSITY",
+            "lat": 3.1147,
+            "lng": 101.6616,
+            "line": "Kelana Jaya Line",
+            "landmark": "University Malaya, KL Gateway Mall"
+        },
+        {
+            "name": "[LRT] KERINCHI",
+            "lat": 3.1154,
+            "lng": 101.6687,
+            "line": "Kelana Jaya Line",
+            "landmark": "Bangsar South, Nexus"
+        },
+        {
+            "name": "[LRT] ABDULLAH HUKUM",
+            "lat": 3.1187,
+            "lng": 101.6736,
+            "line": "Kelana Jaya Line / KTM",
+            "landmark": "Mid Valley Megamall, Eco City"
         }
     ]
 }

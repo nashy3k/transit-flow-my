@@ -2,40 +2,73 @@ import os
 import asyncpg
 import json
 from pgvector.asyncpg import register_vector
-from google.cloud import aiplatform
+from google.cloud import secretmanager, aiplatform
 from vertexai.language_models import TextEmbeddingModel
 
 class VectorService:
     def __init__(self):
-        self.project_id = os.getenv("PROJECT_ID")
+        self.project_id = os.getenv("PROJECT_ID", "transit-flow-my")
         # Embeddings are regional! Always lock to us-central1 for text-multilingual-embedding-002 🎬📈 🇲🇾🚆stack
         self.location = "us-central1"
-        self.db_user = os.getenv("DB_USER")
-        self.db_pass = os.getenv("DB_PASS")
-        self.db_name = os.getenv("DB_NAME")
-        self.db_host = os.getenv("DB_HOST")
+        self.db_user = None
+        self.db_pass = None
+        self.db_name = None
+        self.db_host = None
         self.model_name = "text-multilingual-embedding-002"
         self._model = None
         self._pool = None
 
+    async def _get_secret(self, secret_id: str) -> str:
+        try:
+            client = secretmanager.SecretManagerServiceClient()
+            name = f"projects/{self.project_id}/secrets/{secret_id}/versions/latest"
+            response = client.access_secret_version(request={"name": name})
+            return response.payload.data.decode("UTF-8").strip()
+        except Exception as e:
+            # Fallback to env
+            val = os.getenv(secret_id)
+            if not val:
+                print(f"Warning: Secret {secret_id} not found in Secret Manager or Env.")
+            return val
+
     async def get_pool(self):
         if not self._pool:
+            # Lazy load secrets
+            if not self.db_user:
+                self.db_user = await self._get_secret("DB_USER")
+                self.db_pass = await self._get_secret("DB_PASS")
+                self.db_name = await self._get_secret("DB_NAME")
+                self.db_host = await self._get_secret("DB_HOST")
+
             try:
-                self._pool = await asyncpg.create_pool(
-                    user=self.db_user,
-                    password=self.db_pass,
-                    database=self.db_name,
-                    host=self.db_host,
-                    min_size=1,
-                    max_size=10,
-                    timeout=5.0 # Set a strict timeout
-                )
+                # Detect Cloud SQL Auth Proxy (Unix Socket)
+                # Format: /cloudsql/PROJECT_ID:REGION:INSTANCE_ID
+                unix_socket = f"/cloudsql/{os.getenv('CLOUD_SQL_CONNECTION_NAME', 'transit-flow-my:us-central1:transitflow-db-instance')}"
+                
+                connect_kwargs = {
+                    "user": self.db_user,
+                    "password": self.db_pass,
+                    "database": self.db_name,
+                    "min_size": 1,
+                    "max_size": 10,
+                    "timeout": 5.0
+                }
+
+                if os.path.exists(unix_socket):
+                    print(f"VectorService: Using Cloud SQL Auth Proxy ({unix_socket})")
+                    connect_kwargs["host"] = unix_socket
+                else:
+                    print(f"VectorService: Using TCP Connection ({self.db_host})")
+                    connect_kwargs["host"] = self.db_host
+
+                self._pool = await asyncpg.create_pool(**connect_kwargs)
+                
                 # Register pgvector type
                 async with self._pool.acquire() as conn:
                     await register_vector(conn)
-                print(f"VectorService: Connected to {self.db_host}")
+                print(f"VectorService: Connected to Database")
             except Exception as e:
-                print(f"VectorService Error: Connection Refused to {self.db_host}. Entering Degraded Mode. ({e})")
+                print(f"VectorService Error: Connection Refused. Entering Degraded Mode. ({e})")
                 self._pool = "FAILED" # Sentinel value to prevent constant re-attempts
         return self._pool if self._pool != "FAILED" else None
 

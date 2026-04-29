@@ -6,10 +6,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 async def init_db():
-    user = os.getenv("DB_USER", "transit_admin")
-    password = os.getenv("DB_PASS", "transit_secret_2026")
-    database = os.getenv("DB_NAME", "transit_db")
-    host = os.getenv("DB_HOST", "136.116.138.192")
+    user = os.getenv("DB_USER")
+    password = os.getenv("DB_PASS")
+    database = os.getenv("DB_NAME")
+    host = os.getenv("DB_HOST")
+
+    if not all([user, password, database, host]):
+        print("❌ Error: Missing required database environment variables in .env")
+        return
 
     print(f"Connecting to {host} as {user}...")
     try:

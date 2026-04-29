@@ -1,4 +1,5 @@
 import os
+import random
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -132,47 +133,95 @@ import json
 import os
 
 async def find_nearby_transit(location_name: str = "Shah Alam", lat: float = None, lng: float = None) -> str:
-    """Find nearby rail stations using Haversine distance from specialized registry."""
-    
-    # Load Malaysian Rail Nodes 🎬📈 🇲🇾🚆stack
-    data_path = os.path.join(os.path.dirname(__file__), "..", "app", "data", "malaysian_rail_nodes.json")
+    # --- PHASE 3: CloudSQL + Semantic Search (Primary) ---
     try:
-        with open(data_path, "r") as f:
-            registry = json.load(f)
+        import psycopg2
+        
+        conn_name = os.getenv("CLOUD_SQL_CONNECTION_NAME")
+        if conn_name:
+            conn = psycopg2.connect(
+                dbname=os.getenv("DB_NAME", "transit_db"),
+                user=os.getenv("DB_USER", "transit_admin"),
+                password=os.getenv("DB_PASS", ""),
+                host=f"/cloudsql/{conn_name}"
+            )
+        else:
+            conn = psycopg2.connect(
+                dbname=os.getenv("DB_NAME", "transit_db"),
+                user=os.getenv("DB_USER", "transit_admin"),
+                password=os.getenv("DB_PASS", ""),
+                host=os.getenv("DB_HOST", "127.0.0.1"),
+                port="5432"
+            )
+            
+        cur = conn.cursor()
+        
+        # 1. Semantic Check (Landmark/Name)
+        cur.execute("""
+            SELECT name, line, landmark, lat, lng
+            FROM transit_nodes
+            WHERE name ILIKE %s OR landmark ILIKE %s
+            LIMIT 1;
+        """, (f"%{location_name}%", f"%{location_name}%"))
+        
+        match = cur.fetchone()
+        if match:
+            station_data = [{'name': match[0], 'line': match[1], 'distance': 0.5}]
+            cur.close()
+            conn.close()
+            return f"SUCCESS: Direct node match found for **{location_name}** in CloudSQL. Hub: **{match[0]}**. [STATIONS_DATA]: {json.dumps(station_data)}"
+
+        # 2. Proximity Check (if lat/lng provided)
+        if lat and lng:
+            cur.execute("""
+                SELECT name, line, (coords <@> point(%s, %s)) as distance
+                FROM transit_nodes
+                ORDER BY distance ASC
+                LIMIT 3;
+            """, (lng, lat))
+            rows = cur.fetchall()
+            if rows:
+                summary = ", ".join([f"**{r[0]}** ({round(r[2]*1.60934, 2)} km)" for r in rows])
+                station_data = [{'name': r[0], 'line': r[1], 'distance': round(r[2]*1.60934, 2)} for r in rows]
+                cur.close()
+                conn.close()
+                return f"SUCCESS: Found {len(rows)} nodes nearby in CloudSQL: {summary}. [STATIONS_DATA]: {json.dumps(station_data)}"
+
+        cur.close()
+        conn.close()
+    except Exception as db_err:
+        print(f"Agent CloudSQL Fetch Failed: {db_err}")
+
+    # --- PHASE 2: Tactical JSON Fallback ---
+    def get_data_path():
+        possible_paths = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "data", "malaysian_rail_nodes.json"),
+            os.path.join(os.getcwd(), "app", "data", "malaysian_rail_nodes.json"),
+            "/app/app/data/malaysian_rail_nodes.json"
+        ]
+        for p in possible_paths:
+            if os.path.exists(p): return p
+        return None
+
+    try:
+        data_path = get_data_path()
+        if not data_path: raise FileNotFoundError("Registry missing")
+        with open(data_path, "r") as f: registry = json.load(f)
+        
+        search_term = location_name.lower()
+        for station in registry.get("stations", []):
+            if search_term in station["name"].lower() or (station.get("landmark") and search_term in station["landmark"].lower()):
+                station_data = [{'name': station['name'], 'line': station['line'], 'distance': 0.5}]
+                return f"SUCCESS: Direct node match found for **{location_name}** (Fallback). Hub: **{station['name']}**. [STATIONS_DATA]: {json.dumps(station_data)}"
     except Exception as e:
         return f"NOTICE: Transit registry offline ({str(e)}). Advising based on general RapidKL schedules."
 
-    # If we have coordinates, find the true closest station
-    if lat and lng:
-        stations_with_dist = []
-        
-        for station in registry.get("stations", []):
-            # Haversine Formula for high-fidelity spatial awareness
-            R = 6371 # Earth radius in km
-            dlat = math.radians(station['lat'] - lat)
-            dlng = math.radians(station['lng'] - lng)
-            a = math.sin(dlat/2)**2 + math.cos(math.radians(lat)) * math.cos(math.radians(station['lat'])) * math.sin(dlng/2)**2
-            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-            dist = R * c
-            stations_with_dist.append({
-                'name': station['name'],
-                'line': station['line'],
-                'distance': round(dist, 2)
-            })
-        # Sort and take Top 3
-        stations_with_dist.sort(key=lambda x: x['distance'])
-        top_stations = stations_with_dist[:3]
-        
-        if top_stations:
-            summary = ", ".join([f"**{s['name']}** ({s['distance']} km)" for s in top_stations])
-            return (
-                f"SUCCESS: Found {len(top_stations)} nodes nearby: {summary}. "
-                f"[STATIONS_DATA]: {json.dumps(top_stations)}"
-            )
-
-    # Fallback to name-based logic if no coords
+    # Fallback to hardcoded heuristics if everything fails
     if "shah alam" in location_name.lower():
         return "NOTICE: Closest active hub is **LRT Glenmarie** (~8.6 km). [STATIONS_DATA]: [{\"name\": \"LRT Glenmarie\", \"line\": \"Kelana Jaya\", \"distance\": 8.6}]"
+    
+    if "stadium" in location_name.lower() or "bukit jalil" in location_name.lower():
+        return "NOTICE: Closest hub is **LRT Bukit Jalil** (National Stadium). [STATIONS_DATA]: [{\"name\": \"[LRT] NATIONAL STADIUM\", \"line\": \"Sri Petaling Line\", \"distance\": 0.2}]"
         
     return "NOTICE: Checking general RapidKL schedules for your area. [STATIONS_DATA]: []"
 
@@ -183,11 +232,13 @@ async def route_to_nearest_transit(lat: float, lng: float) -> str:
     
     # Extract distance and name
     try:
-        dist_km = float(station_info.split("Distance: ")[1].split(" km")[0])
-        station_name = station_info.split("**")[1]
-    except:
+        # Improved parsing for [LRT] GLENMARIE (x.x km) format
+        station_name = station_info.split("**")[1] if "**" in station_info else "Station"
+        dist_km = float(station_info.split("(")[1].split(" km")[0]) if "(" in station_info else 5.0
+    except Exception as e:
+        print(f"Parsing error in route_to_nearest: {e}")
         dist_km = 5.0
-        station_name = "Nearest LRT Station"
+        station_name = "Nearest Rail Hub"
         
     # Step 2: Calculate Economics
     eco_summary = calculate_economics_impact(distance_km=dist_km)
@@ -219,6 +270,16 @@ transit_agent = Agent(
     model="gemini-3.1-flash-lite-preview",
     instruction=(
         "SYSTEM ROLE: You are the TransitFlow Executive Orchestrator. Provide high-fidelity, 'WOW' travel intelligence. "
+        "SUSTAINABILITY TRACKING: "
+        "- Your 'Total Impact' calculations reflect the **Potential Sustainability Gain (PSG)**. "
+        "- This is the CO2 you WOULD save by choosing Transit for all your planned journeys today vs. driving a private car. "
+        "- Clarify this in the summary: 'Total CO2 saved if you utilize public transit for these journeys'. "
+        "OPERATIONAL CONTEXT: "
+        "- In Shah Alam/Subang, the **KTM Komuter** and **LRT Kelana Jaya Line** are operational. "
+        "- The **LRT3 (Shah Alam Line)** is NOT operational until June 1st, 2026. Only mention it as 'Future Connectivity'. "
+        "- If a user asks for 'LRT', do NOT suggest 'KTM' even if closer; find the nearest ACTUAL LRT station. "
+        "REPORT STYLE: "
+        "- Be DECISIVE. Do NOT say 'alerts are being processed'. Just state facts. "
         "REPORT STRUCTURE: "
         "1. EXECUTIVE SUMMARY: Start with '### Journey: [Origin] to [Destination] ([Distance] km)'. "
         "2. IMPACT TABLE: A clean comparison of [Car, Moto, Grab, Transit] including CO2 and Budi95 Savings. "
@@ -227,7 +288,7 @@ transit_agent = Agent(
         "5. HIDDEN DATA: End with '<<<DATA>>>' followed by a JSON object. "
         "CRITICAL: The 'polyline' MUST ONLY exist in the JSON. NEVER show raw polyline text in the markdown report. "
         "JSON STRUCTURE: {\"title\": \"...\", \"metrics\": [{\"co2\": f, \"cost\": f} x4], \"stations\": [{\"name\": \"...\", \"line\": \"...\", \"distance\": f}], \"safety\": \"...\", \"traffic\": \"...\", \"polyline\": \"...\"}. "
-        "RELIABILITY: Call 'calculate_live_route' for the map. If tools timeout, use internal knowledge to provide high-fidelity ESTIMATES. No reasoning in output."
+        "RELIABILITY: Call 'calculate_live_route' for the map. No reasoning in output."
     ),
     tools=[
         query_historical_transit_insights,
@@ -310,8 +371,8 @@ async def process_query_adk(query: str, user_location: dict = None, user_id: str
     )
     
     # Step 3: Ensure session existence before execution
-    session_id = "local_dry_run_01"
-    user_id = "hackathon_tester"
+    session_id = "transit_session_01"
+    # user_id is passed from main.py
     
     max_retries = 5
     for attempt in range(max_retries):

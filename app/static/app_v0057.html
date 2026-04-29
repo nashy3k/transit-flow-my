@@ -403,7 +403,7 @@
                 <div class="glass-card p-8 group cursor-pointer hover:bg-cyan-400/5 transition-all">
                     <div class="flex items-center justify-between mb-4">
                         <i data-lucide="radar" class="w-6 h-6 text-cyan-400 group-hover:rotate-45 transition-transform"></i>
-                        <span class="text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em]">Nearby Nodes</span>
+                        <span id="nodes-panel-title" class="text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em]">Nearby Nodes</span>
                     </div>
                     <div class="space-y-4" id="nearby-nodes-container">
                         <div class="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
@@ -426,11 +426,27 @@
         <div class="nav-item"><i data-lucide="user" class="w-6 h-6"></i></div>
     </nav>
 
-    <div id="gps-status" class="fixed top-12 right-12 flex items-center gap-3 text-[10px] font-black mono text-slate-700 bg-black/40 pl-3 pr-1 py-1 rounded-full border border-white/5 backdrop-blur-md">
-        <span>GPS: <span id="gps-label" class="text-amber-500 animate-pulse uppercase">Acquiring...</span></span>
-        <button id="sync-gps" class="w-6 h-6 rounded-full bg-cyan-400/10 flex items-center justify-center text-cyan-400 hover:bg-cyan-400/20 transition-all">
-            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-        </button>
+    <div id="status-stack" class="fixed top-12 right-12 flex flex-col items-end gap-3 z-[2000]">
+        <!-- GPS Status Pill -->
+        <div id="gps-status" class="flex items-center gap-3 text-[10px] font-black mono text-slate-700 bg-black/40 pl-3 pr-1 py-1 rounded-full border border-white/5 backdrop-blur-md">
+            <span>GPS: <span id="gps-label" class="text-amber-500 animate-pulse uppercase">Acquiring...</span></span>
+            <button id="sync-gps" class="w-6 h-6 rounded-full bg-cyan-400/10 flex items-center justify-center text-cyan-400 hover:bg-cyan-400/20 transition-all">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            </button>
+        </div>
+
+        <!-- Floating Mode Toggle -->
+        <div id="mode-toggle" class="flex items-center gap-1 bg-black/60 p-1 rounded-full border border-white/5 backdrop-blur-xl shadow-2xl transition-all scale-0 opacity-0">
+            <button onclick="switchToLiveMode()" id="btn-live-mode" class="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all bg-cyan-400 text-black">Live</button>
+            <button onclick="switchToJourneyMode()" id="btn-journey-mode" class="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all text-slate-500 hover:text-white">Journey</button>
+        </div>
+
+        <!-- Floating Journey Nav -->
+        <div id="floating-scenario-nav" class="flex items-center gap-4 bg-black/60 px-4 py-2 rounded-full border border-white/5 backdrop-blur-xl shadow-2xl transition-all scale-0 opacity-0">
+            <button onclick="prevScenario()" class="text-slate-400 hover:text-cyan-400 transition-colors"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+            <span id="floating-scenario-index" class="text-[10px] font-black mono text-cyan-400">1 / 1</span>
+            <button onclick="nextScenario()" class="text-slate-400 hover:text-cyan-400 transition-colors"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+        </div>
     </div>
 
     <script type="module">
@@ -442,16 +458,32 @@
         let app, auth, provider;
         let currentUser = null;
         let userLocation = null;
-        let journeyHistory = [];
-        let currentScenarioIndex = -1;
+        let currentSessionId = localStorage.getItem('transit_flow_session_id') || `tf_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('transit_flow_session_id', currentSessionId);
+        
+        let journeyHistory = JSON.parse(localStorage.getItem('transit_flow_history')) || [];
+        let currentScenarioIndex = journeyHistory.length > 0 ? journeyHistory.length - 1 : -1;
+        let lastActiveScenarioIndex = currentScenarioIndex === -1 ? 0 : currentScenarioIndex;
         let routeMap = null;
         let routeLayer = null;
 
+        function saveHistory() {
+            localStorage.setItem('transit_flow_history', JSON.stringify(journeyHistory));
+        }
+
         async function initFirebase() {
             try {
-                const response = await fetch('/config');
-                const data = await response.json();
-                app = initializeApp(data.firebaseConfig);
+                // Firebase Client Config: Safe for public exposure as per Google Security Best Practices
+                const firebaseConfig = {
+                    apiKey: "AIzaSyAqnG5BXVNtz_SgDvj7I9rMbTOONsDTzDo",
+                    authDomain: "transit-flow-my.firebaseapp.com",
+                    projectId: "transit-flow-my",
+                    storageBucket: "transit-flow-my.firebasestorage.app",
+                    messagingSenderId: "360411242286",
+                    appId: "1:360411242286:web:3e6e37535bb8ec917aa4bf"
+                };
+                
+                app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 provider = new GoogleAuthProvider();
                 setupAuth();
@@ -491,9 +523,31 @@
                 
                 userLocation = newLocation;
                 const lbl = document.getElementById('gps-label');
-                lbl.innerText = `ACTIVE (${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)})`;
+                lbl.innerText = `GPS LOCKED (${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)})`;
                 lbl.classList.remove('text-amber-500', 'animate-pulse');
-                lbl.classList.add('text-green-400');
+                lbl.classList.add('text-cyan-400');
+                
+                // Center map on first fix if map is ready
+                if (routeMap && !window.mapCentered) {
+                    routeMap.setView([userLocation.lat, userLocation.lng], 14);
+                    window.mapCentered = true;
+                }
+
+                // Update/Add user marker
+                if (routeMap) {
+                    if (!window.userMarker) {
+                        window.userMarker = L.circleMarker([userLocation.lat, userLocation.lng], {
+                            color: '#00d1ff',
+                            fillColor: '#00d1ff',
+                            fillOpacity: 0.6,
+                            radius: 8,
+                            weight: 2
+                        }).addTo(routeMap);
+                        window.userMarker.bindTooltip("You are here", { permanent: false, direction: 'top' });
+                    } else {
+                        window.userMarker.setLatLng([userLocation.lat, userLocation.lng]);
+                    }
+                }
                 
                 fetchNearbyNodes();
             }
@@ -501,7 +555,10 @@
 
         if ("geolocation" in navigator) {
             navigator.geolocation.watchPosition(updateGPS, (err) => {
-                document.getElementById('gps-label').innerText = "ERROR (Check Perms)";
+                console.warn("GPS Acquisition Failed, using fallback (KL Sentral)");
+                document.getElementById('gps-label').innerText = "FALLBACK (KL SENTRAL)";
+                // Fallback to KL Sentral if GPS fails
+                updateGPS({ coords: { latitude: 3.1341, longitude: 101.6869 } });
             }, { enableHighAccuracy: true });
         }
 
@@ -513,6 +570,10 @@
 
         async function fetchNearbyNodes() {
             if (!userLocation) return;
+            // Only update "Live Proximity" if we are NOT viewing a historical scenario
+            if (currentScenarioIndex !== -1 && journeyHistory.length > 0) return;
+            
+            document.getElementById('nodes-panel-title').innerText = "Live Proximity";
             try {
                 const res = await fetch(`/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}`);
                 const nodes = await res.json();
@@ -551,6 +612,18 @@
 
         async function sendMessage(text) {
             if (!text) return;
+
+            if (!userLocation) {
+                addMessage("📡 **Acquiring Telemetry**: Please wait a few seconds for GPS lock before sending your first orchestration request.", 'ai');
+                return;
+            }
+            
+            // Check for Identity in Production
+            if (!currentUser && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                addMessage("⚠️ **Identity Required**: Please click the **'Connect Identity'** button at the top to proceed with predictive orchestration.", 'ai');
+                return;
+            }
+
             // Reveal insights container immediately for visual feedback
             document.getElementById('insights-container').classList.remove('hidden');
             addMessage(text, 'user');
@@ -563,6 +636,12 @@
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
                     body: JSON.stringify({ message: text, location: userLocation })
                 });
+                
+                if (response.status === 403) {
+                    addMessage("❌ **Identity Verification Failed**: Your session may have expired. Please re-authenticate via the 'Connect Identity' button.", 'ai');
+                    return;
+                }
+
                 const data = await response.json();
                 addMessage(data.response || "Hello human, I've processed your location context. Please see the updated telemetry in the side panels.", 'ai');
                 if (data.visual_data) renderInsights(data.visual_data);
@@ -596,7 +675,58 @@
             journeyHistory.push(scenario);
             if (journeyHistory.length > 5) journeyHistory.shift();
             currentScenarioIndex = journeyHistory.length - 1;
+            lastActiveScenarioIndex = currentScenarioIndex;
+            saveHistory();
             updateInsightsView();
+            updateFloatingUI();
+        }
+
+        window.switchToLiveMode = function() {
+            if (currentScenarioIndex !== -1) {
+                lastActiveScenarioIndex = currentScenarioIndex;
+            }
+            currentScenarioIndex = -1;
+            updateInsightsView();
+            updateFloatingUI();
+            fetchNearbyNodes();
+            // Reset map to user location
+            if (userLocation && routeMap) {
+                routeMap.setView([userLocation.lat, userLocation.lng], 14);
+            }
+        }
+
+        window.switchToJourneyMode = function() {
+            if (journeyHistory.length > 0) {
+                currentScenarioIndex = lastActiveScenarioIndex;
+                updateInsightsView();
+                updateFloatingUI();
+            }
+        }
+
+        function updateFloatingUI() {
+            const modeToggle = document.getElementById('mode-toggle');
+            const journeyNav = document.getElementById('floating-scenario-nav');
+            const btnLive = document.getElementById('btn-live-mode');
+            const btnJourney = document.getElementById('btn-journey-mode');
+
+            if (journeyHistory.length > 0) {
+                modeToggle.classList.remove('scale-0', 'opacity-0');
+                journeyNav.classList.remove('scale-0', 'opacity-0');
+                
+                if (currentScenarioIndex === -1) {
+                    btnLive.className = "px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all bg-cyan-400 text-black";
+                    btnJourney.className = "px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all text-slate-500 hover:text-white";
+                    journeyNav.classList.add('scale-0', 'opacity-0');
+                } else {
+                    btnLive.className = "px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all text-slate-500 hover:text-white";
+                    btnJourney.className = "px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all bg-cyan-400 text-black";
+                    journeyNav.classList.remove('scale-0', 'opacity-0');
+                    document.getElementById('floating-scenario-index').innerText = `${currentScenarioIndex + 1} / ${journeyHistory.length}`;
+                }
+            } else {
+                modeToggle.classList.add('scale-0', 'opacity-0');
+                journeyNav.classList.add('scale-0', 'opacity-0');
+            }
         }
 
         function updateInsightsView() {
@@ -604,13 +734,28 @@
             const empty = document.getElementById('insights-empty');
             const pane = document.getElementById('visual-insights');
             const scenario = journeyHistory[currentScenarioIndex];
-            if (!scenario) return;
+            
+            if (currentScenarioIndex === -1 || !scenario) {
+                pane.classList.add('hidden');
+                empty.classList.remove('hidden');
+                document.getElementById('nodes-panel-title').innerText = "Live Proximity";
+                fetchNearbyNodes();
+                return;
+            }
+
+            pane.classList.remove('hidden');
+            empty.classList.add('hidden');
+
+            // Update Title
+            document.getElementById('nodes-panel-title').innerText = "Route Recommendations";
 
             // Phase 3 Sync: Update Nearby Nodes if journey data contains them
             const nodeContainer = document.getElementById('nearby-nodes-container');
             nodeContainer.innerHTML = ''; // Always clear first to prevent stale data
             if (scenario.stations && scenario.stations.length > 0) {
-                scenario.stations.forEach((node, idx) => {
+                // Ensure the closest station is always idx 0 for highlighting
+                const sortedStations = [...scenario.stations].sort((a, b) => a.distance - b.distance);
+                sortedStations.forEach((node, idx) => {
                     const div = document.createElement('div');
                     div.className = `flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-cyan-400/20 transition-all ${idx === 0 ? 'border-cyan-400/30 bg-cyan-400/5' : ''}`;
                     div.innerHTML = `
@@ -769,7 +914,12 @@
                 routeMap = L.map('route-map', {
                     zoomControl: false,
                     attributionControl: false
-                }).setView([3.1390, 101.6869], 12);
+                });
+                
+                // Set initial view: Use user location if available, else KL default
+                const initialCenter = userLocation ? [userLocation.lat, userLocation.lng] : [3.1390, 101.6869];
+                const initialZoom = userLocation ? 14 : 12;
+                routeMap.setView(initialCenter, initialZoom);
                 
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
                     maxZoom: 19,
@@ -783,7 +933,24 @@
             }
 
             if (!encodedPolyline) {
-                routeMap.setView([3.1390, 101.6869], 12);
+                // Clear old route if it exists
+                if (routeLayer) {
+                    routeMap.removeLayer(routeLayer);
+                    routeLayer = null;
+                }
+                
+                // If no polyline, but we have user location, center it
+                if (userLocation) {
+                    routeMap.setView([userLocation.lat, userLocation.lng], 14);
+                } else {
+                    routeMap.setView([3.1390, 101.6869], 12);
+                }
+                
+                // Force tile refresh to prevent "blank" maps
+                setTimeout(() => {
+                    routeMap.invalidateSize();
+                }, 200);
+                
                 return;
             }
 
@@ -835,8 +1002,27 @@
         setInterval(fetchLiveStats, 60000);
         fetchLiveStats();
 
-        window.prevScenario = () => { if (currentScenarioIndex > 0) { currentScenarioIndex--; updateInsightsView(); } };
-        window.nextScenario = () => { if (currentScenarioIndex < journeyHistory.length - 1) { currentScenarioIndex++; updateInsightsView(); } };
+        window.prevScenario = () => { 
+            if (currentScenarioIndex > 0) { 
+                currentScenarioIndex--; 
+                lastActiveScenarioIndex = currentScenarioIndex;
+                updateInsightsView(); 
+                updateFloatingUI();
+            } 
+        };
+
+        window.nextScenario = () => { 
+            if (currentScenarioIndex < journeyHistory.length - 1) { 
+                currentScenarioIndex++; 
+                lastActiveScenarioIndex = currentScenarioIndex;
+                updateInsightsView(); 
+                updateFloatingUI();
+            } 
+        };
+
+        // Final Init Sequence
+        updateFloatingUI();
+        if (journeyHistory.length > 0) updateInsightsView();
 
         document.getElementById('send-btn').onclick = () => sendMessage(document.getElementById('user-input').value);
         document.getElementById('user-input').onkeydown = (e) => { if (e.key === 'Enter') sendMessage(e.target.value); };
@@ -869,6 +1055,11 @@
         // Initialize App
         initFirebase();
         fetchLiveStats();
+        
+        // Immediate Map Initialization (KL Default)
+        setTimeout(() => {
+            initOrUpdateMap();
+        }, 1000);
     </script>
 </body>
 </html>

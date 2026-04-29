@@ -88,7 +88,13 @@ app = FastAPI(title="TransitFlow API", lifespan=lifespan)
 # Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://transit-flow-my.web.app",
+        "https://transit-flow-my.firebaseapp.com",
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -115,6 +121,8 @@ async def verify_user(authorization: str = Header(None)) -> str:
     """Verify the Firebase ID token in the Authorization header."""
     # Prioritize SKIP_AUTH for local development environments
     if os.environ.get("SKIP_AUTH") == "true":
+        # Log a warning to stdout for observability
+        print("⚠️ SECURITY: Authentication bypass active (SKIP_AUTH=true)")
         return "local_dev_user"
 
     if not authorization:
@@ -132,8 +140,14 @@ async def verify_user(authorization: str = Header(None)) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 async def get_index():
-    with open("app/static/app_v0057.html") as f:
-        return f.read()
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(base_dir, "static", "app_v0057.html")
+    try:
+        with open(path, "r") as f:
+            return f.read()
+    except Exception as e:
+        print(f"Index fetch error: {e}")
+        return "<html><body><h1>TransitFlow Engine: UI Bundle Missing</h1></body></html>"
 
 @app.post("/chat")
 async def chat(request: ChatRequest, user_email: str = Depends(verify_user)):
@@ -171,8 +185,6 @@ async def chat(request: ChatRequest, user_email: str = Depends(verify_user)):
                 chat_text = parts[0].strip()
                 json_str = parts[1].strip()
                 
-                # Robust Backslash Sanitization for Polylines
-                json_str = json_str.replace("\\", "\\\\")
                 # Handle common markdown baggage
                 json_str = json_str.replace("```json", "").replace("```", "").strip()
                 
@@ -263,12 +275,62 @@ async def chat(request: ChatRequest, user_email: str = Depends(verify_user)):
 
 @app.get("/nearby")
 async def get_nearby(lat: float, lng: float):
-    """Calculates the 3 nearest transit nodes based on haversine distance."""
+    # --- PHASE 3: CloudSQL + Geospatial Search (Primary) ---
+    try:
+        import psycopg2
+        
+        # Determine connection method (Socket for Cloud Run, Host for Local/Playground)
+        conn_name = os.getenv("CLOUD_SQL_CONNECTION_NAME")
+        if conn_name:
+            conn = psycopg2.connect(
+                dbname=os.getenv("DB_NAME", "transit_db"),
+                user=os.getenv("DB_USER", "transit_admin"),
+                password=os.getenv("DB_PASS", ""),
+                host=f"/cloudsql/{conn_name}"
+            )
+        else:
+            conn = psycopg2.connect(
+                dbname=os.getenv("DB_NAME", "transit_db"),
+                user=os.getenv("DB_USER", "transit_admin"),
+                password=os.getenv("DB_PASS", ""),
+                host=os.getenv("DB_HOST", "127.0.0.1"),
+                port="5432"
+            )
+            
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT name, line, landmark, lat, lng, 
+                   (coords <-> point(%s, %s)) as distance
+            FROM transit_nodes
+            ORDER BY distance ASC
+            LIMIT 5;
+        """, (lng, lat))
+        
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        if rows:
+            return [{
+                "name": r[0],
+                "line": r[1],
+                "landmark": r[2],
+                "lat": r[3],
+                "lng": r[4],
+                "distance": round(r[5] * 111.32, 2) # Geometric degree to KM approximation
+            } for r in rows]
+        else:
+            print("CloudSQL: No rows found, falling back to JSON.")
+            
+    except Exception as db_err:
+        print(f"CloudSQL Proximity Fetch Failed: {db_err}. Switching to JSON.")
+
+    # --- PHASE 2: Tactical JSON Fallback ---
     import json
     import math
     
     def haversine(lat1, lon1, lat2, lon2):
-        R = 6371  # Earth radius in km
+        R = 6371
         dLat = math.radians(lat2 - lat1)
         dLon = math.radians(lon2 - lon1)
         a = math.sin(dLat / 2) * math.sin(dLat / 2) + \
@@ -277,18 +339,26 @@ async def get_nearby(lat: float, lng: float):
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         return R * c
 
+    def get_data_path():
+        possible_paths = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "malaysian_rail_nodes.json"),
+            os.path.join(os.getcwd(), "app", "data", "malaysian_rail_nodes.json"),
+            "/app/app/data/malaysian_rail_nodes.json",
+            "app/data/malaysian_rail_nodes.json"
+        ]
+        for p in possible_paths:
+            if os.path.exists(p): return p
+        return None
+
     try:
-        with open("app/data/malaysian_rail_nodes.json", "r") as f:
+        path = get_data_path()
+        if not path: return []
+        with open(path, "r") as f:
             data = json.load(f)
-            
         stations = data.get("stations", [])
         for s in stations:
             s["distance"] = haversine(lat, lng, s["lat"], s["lng"])
-            
-        # Sort by distance and take top 3
-        sorted_stations = sorted(stations, key=lambda x: x["distance"])[:3]
-        
-        return sorted_stations
+        return sorted(stations, key=lambda x: x["distance"])[:3]
     except Exception as e:
         print(f"Nearby fetch error: {e}")
         return []
@@ -353,12 +423,12 @@ async def get_config():
     """Return the client-side configuration (safe for public exposure)"""
     return {
         "firebaseConfig": {
-            "apiKey": os.environ.get("FIREBASE_API_KEY"),
-            "authDomain": os.environ.get("FIREBASE_AUTH_DOMAIN"),
-            "projectId": os.environ.get("FIREBASE_PROJECT_ID"),
-            "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET"),
-            "messagingSenderId": os.environ.get("FIREBASE_MESSAGING_SENDER_ID"),
-            "appId": os.environ.get("FIREBASE_APP_ID")
+            "apiKey": (os.environ.get("FIREBASE_API_KEY") or "").strip(),
+            "authDomain": (os.environ.get("FIREBASE_AUTH_DOMAIN") or "").strip(),
+            "projectId": (os.environ.get("FIREBASE_PROJECT_ID") or "").strip(),
+            "storageBucket": (os.environ.get("FIREBASE_STORAGE_BUCKET") or "").strip(),
+            "messagingSenderId": (os.environ.get("FIREBASE_MESSAGING_SENDER_ID") or "").strip(),
+            "appId": (os.environ.get("FIREBASE_APP_ID") or "").strip()
         }
     }
 
