@@ -570,8 +570,12 @@
 
         async function fetchNearbyNodes() {
             if (!userLocation) return;
-            // Only update "Live Proximity" if we are NOT viewing a historical scenario
-            if (currentScenarioIndex !== -1 && journeyHistory.length > 0) return;
+            // Phase 3 Fix: Only block if we are actively viewing a historical scenario, 
+            // but allow the initial scan if the UI hasn't been populated yet.
+            const container = document.getElementById('nearby-nodes-container');
+            const isEmpty = container.innerHTML.includes('No telemetry detected');
+            
+            if (currentScenarioIndex !== -1 && journeyHistory.length > 0 && !isEmpty) return;
             
             document.getElementById('nodes-panel-title').innerText = "Live Proximity";
             try {
