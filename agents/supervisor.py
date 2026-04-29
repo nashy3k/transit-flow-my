@@ -87,7 +87,8 @@ async def calculate_live_route(lat1: float, lng1: float, destination_name: str) 
     polyline = route.get("polyline", "")
     
     # Phase 2 Memory: Persist the destination for origin pivoting
-    save_user_memory("hackathon_tester", {"last_destination": destination_name})
+    # In a real tool, we'd need user context. For now we use the global sync ID.
+    save_user_memory("guest", {"last_destination": destination_name})
     
     status_msg = "All clear" if delay_min < 5 else (f"Heavy Traffic (+{delay_min} min)" if delay_min > 15 else f"Moderate Traffic (+{delay_min} min)")
 
@@ -244,7 +245,7 @@ async def route_to_nearest_transit(lat: float, lng: float) -> str:
     eco_summary = calculate_economics_impact(distance_km=dist_km)
     
     # Phase 2 Memory: Persist the destination for origin pivoting
-    save_user_memory("hackathon_tester", {"last_destination": station_name})
+    save_user_memory("guest", {"last_destination": station_name})
     
     return f"{station_info}\n\n[ECONOMICS ANALYSIS]\n{eco_summary}"
 
@@ -332,7 +333,7 @@ async def process_query_adk(query: str, user_location: dict = None, user_id: str
         user_id (str): Unique identifier for session persistence.
     """
     # Step 3: Fetch Stateful Memories (Phase 2)
-    memories = get_user_memory("hackathon_tester") # Using fixed test ID for now
+    memories = get_user_memory(user_id) 
     last_dest = memories.get("last_destination", "None")
     
     # Final Production Context Sync 🎬📈 🇲🇾🚆stack

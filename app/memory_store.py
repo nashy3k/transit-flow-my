@@ -36,3 +36,18 @@ def get_user_memory(user_id: str) -> Dict:
             return memory.get(user_id, {})
     except:
         return {}
+
+def clear_user_memory(user_id: str):
+    """Clears stateful user data from the local JSON store."""
+    if not os.path.exists(MEMORY_FILE):
+        return
+    try:
+        with open(MEMORY_FILE, 'r') as f:
+            memory = json.load(f)
+        
+        if user_id in memory:
+            del memory[user_id]
+            with open(MEMORY_FILE, 'w') as f:
+                json.dump(memory, f, indent=4)
+    except Exception as e:
+        print(f"Error clearing memory for {user_id}: {e}")
