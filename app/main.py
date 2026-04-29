@@ -340,22 +340,27 @@ async def get_nearby(lat: float, lng: float):
         return R * c
 
     def get_data_path():
-        possible_paths = [
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "malaysian_rail_nodes.json"),
-            os.path.join(os.getcwd(), "app", "data", "malaysian_rail_nodes.json"),
-            "/app/app/data/malaysian_rail_nodes.json",
-            "app/data/malaysian_rail_nodes.json"
-        ]
-        for p in possible_paths:
-            if os.path.exists(p): return p
+        import pathlib
+        # Search for the file dynamically
+        for p in pathlib.Path('/app').rglob('malaysian_rail_nodes.json'):
+            return str(p)
+        for p in pathlib.Path('.').rglob('malaysian_rail_nodes.json'):
+            return str(p)
         return None
 
     try:
         path = get_data_path()
-        if not path: return []
-        with open(path, "r") as f:
-            data = json.load(f)
-        stations = data.get("stations", [])
+        if not path:
+            print("CRITICAL: JSON registry not found! Using hardcoded fallback.")
+            stations = [
+                {"name": "[LRT] UNIVERSITY", "lat": 3.1147, "lng": 101.6616, "line": "Kelana Jaya Line"},
+                {"name": "[HUB] KL SENTRAL", "lat": 3.1340, "lng": 101.6861, "line": "Interchange (LRT/MRT/ETS)"},
+                {"name": "[LRT] GLENMARIE", "lat": 3.0950, "lng": 101.5900, "line": "Kelana Jaya Line"}
+            ]
+        else:
+            with open(path, "r") as f:
+                data = json.load(f)
+            stations = data.get("stations", [])
         for s in stations:
             s["distance"] = haversine(lat, lng, s["lat"], s["lng"])
         return sorted(stations, key=lambda x: x["distance"])[:3]
