@@ -21,7 +21,7 @@ tests/
 .agent/
 .brain/
 artifacts/
-media/
+# media/ - Restored for submission assets
 *.txt
 *.log
 
