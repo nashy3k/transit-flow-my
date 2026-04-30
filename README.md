@@ -7,19 +7,20 @@ TransitFlow "Kinetic" is a high-resilience production agent designed to act as a
 
 ## 🚀 Phase 2 "Kinetic" Upgrades
 
-*   **⚡ Gemini 3.1 Flash Lite**: Upgraded to the latest 3.1 series for lower latency and higher reasoning precision during journey orchestration.
-*   **💰 Live Economics Sensing**: Dynamically fetches current market fuel rates (RM 3.97) via the **DataGovMy MCP Bridge** (Live Parquet Parsing).
-*   **🗑️ Clear History (NEW)**: Secure, one-click reset for local browser state and persistent server-side agent memory, ensuring a fresh start for every journey.
-*   **📍 Diverse Proximity (NEW)**: Intelligent station discovery that prioritizes modal variety (KTM, LRT, MRT) and eliminates duplicates within a 10km radius.
-*   **🔐 Production Security**: 100% integration with **Google Cloud Secret Manager** for zero-leak credential isolation in production Cloud Run environments.
+*   **⚡ Gemini 3.1 Flash Lite**: Upgraded to the latest 3.1 series for lower latency and higher reasoning precision.
+*   **🧠 Agentic Memory Bank (NEW)**: Long-term persistent memory powered by **CloudSQL + pgvector**. TransitFlow now remembers user journey patterns and preferences across sessions for hyper-personalized safety advice.
+*   **💰 Live Economics Sensing**: Dynamically fetches current market fuel rates (RM 3.97) via the **DataGovMy MCP Bridge**.
+*   **🗑️ Clear History (NEW)**: Secure, one-click reset for local browser state and the persistent **Memory Bank**, ensuring a fresh start for every journey.
+*   **📍 Diverse Proximity (NEW)**: Intelligent station discovery that prioritizes modal variety (KTM, LRT, MRT).
+*   **🔐 Production Security**: 100% integration with **Google Cloud Secret Manager**.
 
 ---
 
 ## 🚀 Key Features
 
--   **⛈️ Safety-First Routing**: Integrated with live **DataGovMy** meteorological telemetry to provide real-time flood and weather briefings on every journey query.
+-   **⛈️ Safety-First Routing**: Integrated with live **DataGovMy** meteorological telemetry for real-time flood and weather briefings.
 -   **💰 BudiSavings Shield**: A dynamic economics simulator that calculates the savings between the **Market Fuel Rate** (RM 3.97) and the **Budi95 Subsidized Rate** (RM 2.05).
--   **🚆 Multi-Modal Optimization**: Direct comparison of Car, Motorbike, E-Hailing (Grab), and Public Transit (LRT/MRT/Bus) in a clean executive briefing.
+-   **🚆 Multi-Modal Optimization**: Direct comparison of Car, Motorbike, E-Hailing (Grab), and Public Transit (LRT/MRT/Bus).
 
 ---
 
@@ -37,11 +38,13 @@ graph TD
         Intent -- Safety --> Safety[DataGovMy Weather & Flood Tool]
         Intent -- Journey --> Geo[PostGIS Geospatial Tool]
         Intent -- Economy --> Eco[Live Fuel Parquet Sensing]
+        Intent -- Recall --> Mem[pgvector Memory Bank Recall]
     end
     
     Safety -- Alerts --> Supervisor
     Geo -- Transit Node --> Supervisor
     Eco -- Market Rate: RM 3.97 --> Supervisor
+    Mem -- Past Patterns --> Supervisor
     
     Supervisor -- Synthesize --> JSON[Visual Insight Assembly]
     JSON --> UI[Production Dashboard]
@@ -49,30 +52,15 @@ graph TD
 ```
 
 ### 🏛️ Production-Grade Hardening
-*   **🔐 Secret Management**: 100% integration with **Google Cloud Secret Manager**. All sensitive credentials (DB, API Keys, Firebase) are pulled dynamically.
-*   **🏢 Database (Cloud SQL)**: Geospatial proximity logic powered by **PostgreSQL (PostGIS)** for high-precision station matching.
-*   **🖥️ Windows First**: ASCII-hardened logging system ensuring stability across both local Windows development and Linux Cloud Run production.
-
-### 🧱 Core Technologies
--   **AI Core**: **Vertex AI (Gemini 3.1 Flash Lite)** orchestrated via the **Google Agentic Development Kit (ADK)**.
--   **Communication**: **Model Context Protocol (MCP)** via **FastMCP** for decoupled, resilient tool-calling.
--   **Backend**: **Python 3.12 (FastAPI)** deployed on **Google Cloud Run**.
--   **Frontend**: Professional Vanilla JS/HTML5/CSS3 dashboard with real-time GPS telemetry.
+*   **🔐 Secret Management**: 100% integration with **Google Cloud Secret Manager**.
+*   **🏢 Database (Cloud SQL)**: Geospatial proximity logic powered by **PostgreSQL (PostGIS)** and semantic search via **pgvector**.
+*   **🖥️ Windows First**: ASCII-hardened logging system ensuring stability across local Windows dev and Linux production.
 
 ---
 
-## 🏛️ ADK Orchestration Detail
+## ⚖️ License
 
-TransitFlow utilizes the **ADK `Runner`** to maintain session persistence and tool-calling integrity. 
-- **Supervisor Agent**: A single `TransitFlowSupervisor` acts as the primary reasoning node.
-- **Skill Injection**: Specialized "Skills" (Geospatial, Economics, Meteorological) are injected directly into the Supervisor's toolbelt via the ADK.
-- **Memory Persistence**: Per-user session memory stored in a high-resilience registry with support for targeted purging (Clear History).
-
----
-
-## 📈 Impact & Scalability
-
-By choosing a **Serverless Multi-Agent Architecture** backed by **FastAPI** and **FastMCP**, TransitFlow ensures low-latency safety advice even during high-concurrency events. The **MCP-based design** allows for immediate expansion of data sources (e.g., live Prasarana feeds) without refactoring the core reasoning logic.
+TransitFlow is licensed under the **Polyform Noncommercial License 1.0.0**. See the [LICENSE](LICENSE) file for details.
 
 ---
 
