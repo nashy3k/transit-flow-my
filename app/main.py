@@ -141,7 +141,7 @@ async def chat(request: ChatRequest, user_email: str = Depends(verify_user)):
             
         # --- DATA EXTRACTION & SCRUBBING ---
         chat_text = ai_raw
-        visual_data = None
+        visual_data = {}
         
         if "<<<DATA>>>" in ai_raw:
             try:
@@ -157,30 +157,32 @@ async def chat(request: ChatRequest, user_email: str = Depends(verify_user)):
                 end_idx = json_str.rfind("}") + 1
                 if start_idx != -1 and end_idx != 0:
                     try:
+                        # Robust JSON load
                         visual_data = json.loads(json_str[start_idx:end_idx])
                     except Exception as json_err:
                         print(f"JSON Parse failed, trying fallback: {json_err}")
                         import ast
-                        clean_str = json_str[start_idx:end_idx].replace("null", "None").replace("true", "True").replace("false", "False")
-                        visual_data = ast.literal_eval(clean_str)
-                
-                # Standardize to { "title": ..., "metrics": [...] }
-                if isinstance(visual_data, list):
-                    visual_data = { "title": "Calculated Journey", "metrics": visual_data }
-                elif isinstance(visual_data, dict) and "metrics" not in visual_data:
-                    visual_data = { "title": visual_data.get("title", "Insight"), "metrics": [visual_data] }
+                        # Double-escape backslashes for AST compatibility with raw polylines
+                        fixed_json = json_str[start_idx:end_idx].replace("\\", "\\\\").replace("null", "None").replace("true", "True").replace("false", "False")
+                        visual_data = ast.literal_eval(fixed_json)
             except Exception as e:
                 print(f"Delimiter Parsing failed: {e}")
                 pass
         
-        # --- HARD POLYLINE SHIELD: Strip any leaked polyline strings from chat ---
+        # --- HARD POLYLINE SHIELD: Selective Scrubbing ---
         import re
-        # Scrub raw polylines (>50 alphanumeric chars)
-        chat_text = re.sub(r'[a-zA-Z0-9\-_]{50,}', '[Map Data]', chat_text)
-        # Scrub technical metadata
+        # ONLY scrub if it's clearly a raw polyline block outside of the JSON
+        if len(chat_text) > 500 and "polyline" not in chat_text:
+             chat_text = re.sub(r'[a-zA-Z0-9\-_]{100,}', '[Map Data]', chat_text)
+             
+        # Scrub technical metadata markers
         chat_text = re.sub(r'--- TOOL_METADATA:.*?---', '', chat_text, flags=re.DOTALL)
         chat_text = re.sub(r'\[STATIONS_DATA\]:.*?$', '', chat_text, flags=re.MULTILINE)
         chat_text = re.sub(r'TOOL_METADATA:.*?$', '', chat_text, flags=re.MULTILINE)
+        
+        # Emergency Fallback: If scrubber was too aggressive, restore original text minus the DATA block
+        if not chat_text.strip() and ai_raw:
+            chat_text = ai_raw.split("<<<DATA>>>")[0].strip()
         
         # --- PHASE 3 ROBUST SYNC: Fallback Extraction ---
         import re

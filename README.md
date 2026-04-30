@@ -63,6 +63,9 @@ graph TD
 ### 🏛️ Production-Grade Hardening
 *   **🔐 Secret Management**: 100% integration with **Google Cloud Secret Manager**.
 *   **🏢 Database (Cloud SQL)**: Geospatial proximity logic powered by **PostgreSQL (PostGIS)** and semantic search via **pgvector**.
+*   **🦾 Production Hardening**: 
+    *   **Credential Sync**: Hardened Secret Manager handshakes for `transit_admin`.
+    *   **Robust Parsing**: Implemented "Double-Escape" JSON shielding to protect map polylines from crashing the chat UI.
 *   **🖥️ Windows First**: ASCII-hardened logging system ensuring stability across local Windows dev and Linux production.
 
 ---
