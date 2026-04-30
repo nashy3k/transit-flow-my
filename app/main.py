@@ -382,8 +382,8 @@ async def get_stats():
             "co2_saved": round(15.4 + (datetime.now().second / 10), 2),
             "efficiency": 88,
             "flood": 0,
-            "fuel": "RON95 RM 3.87",
-            "budi": "RM 1.99"
+            "fuel": "RON95 RM 3.97",
+            "budi": "RM 2.05"
         }
     except Exception as e:
         print(f"Stats fetch error: {e}")

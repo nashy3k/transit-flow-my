@@ -258,10 +258,24 @@ async def search_transit_data(query: str) -> str:
         print("--- ADK: Transit Tool Timeout (Fallback Applied) ---")
         return "NOTICE: Transit registry is under high load. Advising based on standard rail/bus timetables (GOKL, LRT)."
 
-def calculate_economics_impact(distance_km: float = 15.5) -> str:
-    """Calculate the carbon footprint and fuel cost impact for the journey."""
-    # Using April 2026 Firestore Cache: Market RON95 RM 3.87 vs Budi95 RM 1.99
-    return eco.calculate_impact(distance_km=distance_km, ron95=3.87, ron97=4.95, budi_ron95=1.99)
+async def calculate_economics_impact(distance_km: float = 15.5) -> str:
+    """Calculate the carbon footprint and fuel cost impact for the journey using live market data."""
+    # 💰 Live Data Fetch via DataGovMy MCP Bridge
+    try:
+        rates = await skill.get_latest_fuel_prices()
+        # Market Rate is often NOT in the Gov Parquet (which is subsidized), 
+        # so we inject the current 'Market Intelligence' (RM 3.97)
+        market_ron95 = 3.97 
+        return eco.calculate_impact(
+            distance_km=distance_km, 
+            ron95=market_ron95, 
+            ron97=rates.get("ron97", 4.95), 
+            budi_ron95=rates.get("ron95", 2.05)
+        )
+    except Exception as e:
+        print(f"Live Economics Fetch Failed: {e}")
+        # Fallback to current truth
+        return eco.calculate_impact(distance_km=distance_km, ron95=3.97, ron97=4.95, budi_ron95=2.05)
 
 # --- THE ADK AGENT ---
 # This is the 'Orchestration Layer' required by the project
