@@ -1,7 +1,16 @@
-# 🚆 TransitFlow "Kinetic" 🇲🇾
-**The Resilient, ADK-powered National Mobility & Economy Advisor.**
+# 🏛️ TransitFlow "Kinetic" – Phase 2 Release
+**High-Resilience Multi-Agent Mobility Orchestrator for Malaysia**
 
-TransitFlow "Kinetic" is a high-resilience production agent designed to act as a **National Economic & Safety Shield**. Built on the **Google Agentic Development Kit (ADK)** and bridged with live national registries via **MCP**, TransitFlow protects Malaysian commuters from global fuel volatility (RM 3.97) and unpredictable flash floods.
+> **Phase 2 Status**: [PRODUCTION HARDENED] 🦾  
+> **Target**: Gen AI Academy Hackathon (APAC Cohort 1)
+
+TransitFlow "Kinetic" is a production-grade evolution of the TransitFlow prototype. It is a state-aware mobility engine that bridges the gap between **Real-Time Geospatial Intelligence** and **National Economics (Budi95)**.
+
+### 🚀 Phase 2 Kinetic Innovations:
+- **🧠 Semantic Memory Bank**: Powered by **Cloud SQL + pgvector**, enabling the agent to remember and recall journey patterns across user sessions.
+- **⚡ ADK Kinetic Engine**: A high-resilience **Supervisor-Tool orchestrator** built on the **Google Agentic Development Kit (ADK)** for sub-second multi-agent reasoning.
+- **📡 MCP Registry Bridge**: Decoupled tool integration via **Model Context Protocol**, allowing live sensing of **DataGovMy** fuel and weather telemetry.
+TransitFlow protects Malaysian commuters from global fuel volatility (RM 3.97) and unpredictable flash floods.
 
 ---
 
